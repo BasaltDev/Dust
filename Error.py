@@ -180,6 +180,13 @@ the function definition to expect a different number of arguments.",
             f"Try renaming the new symbol or removing the new definition of `{name}`.",
         )
 
+    @staticmethod
+    def NotAType(typ):
+        return (
+            f"`{typ}` is not a valid type",
+            "Try using a valid, existing data type.",
+        )
+
 
 class ErrorIDs:
     MalformedString = "E0001"
@@ -199,6 +206,7 @@ class ErrorIDs:
     NotAFunction = "E0013"
     ArgumentCountMismatch = "E0014"
     AlreadyDefinedSymbol = "E0015"
+    NotAType = "E0016"
 
 
 def error(

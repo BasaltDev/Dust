@@ -13,6 +13,7 @@ from pathlib import Path
 
 from Analyzer import Analyzer
 from coloring import Fore
+from DustTest import DustTestInterpreter, DustTestParser
 from Error import ErrorIDs, ErrorInfo, ErrorType, error
 from Explanations import EXPLANATIONS
 from Interpreter import Interpreter
@@ -47,6 +48,12 @@ psr.add_argument(
     "--time",
     action="store_true",
     help="times the full execution, from lexing to interpreting, of your Dust program",
+)
+psr.add_argument(
+    "-t",
+    "--test",
+    help="Tests your programs using the built-in DustTest testing framework \
+(expects a folder containing .dtest files)",
 )
 args = psr.parse_args()
 
@@ -100,7 +107,14 @@ def interpret(file):
         )
 
 
-if args.explain:
+if args.test:
+    directory = Path(args.test).resolve()
+    for fp in directory.glob("*dtest"):
+        with open(fp, encoding="utf-8") as f:
+            parser = DustTestParser(f.read(), fp)
+            ast = parser.parse()
+            DustTestInterpreter(ast).interpret()
+elif args.explain:
     args.explain.sort()
     import re
 

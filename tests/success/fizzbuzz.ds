@@ -1,0 +1,16 @@
+let idx = 1;
+while idx <= 100 {
+    let fizzbuzz = <string>idx;
+    if idx % 3 == 0 {
+        fizzbuzz = "Fizz";
+    }
+    if idx % 5 == 0 {
+        if fizzbuzz == "Fizz" {
+            fizzbuzz = "FizzBuzz";
+        } else {
+            fizzbuzz = "Buzz";
+        }
+    }
+    print(fizzbuzz);
+    idx++;
+}

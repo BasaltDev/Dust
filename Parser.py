@@ -348,7 +348,14 @@ class Parser:
     def parse_data_type(self):
         if self.ct == TokenType.DATA_TYPE:
             return self.ct.value
-        raise Exception()
+        error(
+            self.errinfomod,
+            ErrorType.NotAType,
+            ErrorIDs.NotAType,
+            f"{self.ct.line}:{self.ct.col}-{self.ct.colEnd}",
+            self.ct.value
+        )
+        self.errored = True
 
     def parse_let_statement(self, const=False):
         line = self.ct.line
