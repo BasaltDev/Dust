@@ -1,0 +1,12 @@
+/* Collatz Conjecture */
+let i = <int>input("Enter any integer: ");
+print(i);
+while i != 1 {
+    if i % 2 == 0 {
+        i \= 2;
+    } else {
+        i *= 3;
+        i += 1;
+    }
+    print(i);
+}

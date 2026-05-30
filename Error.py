@@ -15,10 +15,11 @@ def char_width(char):
 
 
 class ErrorInfo:
-    def __init__(self, filename, source_code):
+    def __init__(self, filename, source_code, json=False):
         self.filename = filename
         self.source_code = source_code
         self.source_lines = source_code.split("\n")
+        self.json = json
         self.error_table = []
 
 
@@ -214,14 +215,47 @@ class ErrorIDs:
     RecursionDepthError = "E0017"
 
 
+class ErrorIDNames:
+    E0001 = "MalformedString"
+    E0002 = "MalformedFloat"
+    E0003 = "TokenExpected"
+    E0004 = "UnexpectedCharacter"
+    E0005 = "UnexpectedToken"
+    E0006 = "UndefinedSymbol"
+    E0007 = "ZeroDivision"
+    E0008A = "OperatorTypeMismatch"
+    E0008B = "AssignmentTypeMismatch"
+    E0008C = "ConditionalTypeMismatch"
+    E0009 = "ConstReassignment"
+    E0010 = "KeywordOutsideOfContext"
+    E0011 = "TypeCastError"
+    E0012 = "KeyboardInterruptError"
+    E0013 = "NotAFunction"
+    E0014 = "ArgumentCountMismatch"
+    E0015 = "AlreadyDefinedSymbol"
+    E0016 = "NotAType"
+    E0017 = "RecursionDepthError"
+
+
 def error(
     error_info: ErrorInfo,
-    error_type,
+    error_type: ErrorType,
     error_id: ErrorIDs,
     position_info: str,
     *args,
     show_code=True,
 ):
+    if error_info.json:
+        error_info.error_table.append(
+            {
+                "id": error_id,
+                "name": getattr(ErrorIDNames, error_id),
+                "representation": error_type(*args)
+                if isinstance(error_type(*args), str)
+                else error_type(*args)[0],
+            }
+        )
+        return
     errmsg = error_type(*args)
     plines = position_info.split(":")[0]
     if len(plines.split("-")) > 1 and int(plines.split("-")[0]) == int(
@@ -238,7 +272,7 @@ def error(
 {errmsg[0] if isinstance(errmsg, tuple) else errmsg}"
     )
     if not show_code:
-        error_info.error_table.append(error_id)
+        error_info.error_table.append({"id": error_id})
         return
     splitted = position_info.split(":")
     lines = splitted[0]
@@ -290,7 +324,15 @@ def error(
     print(Style.RESET_ALL)
     if isinstance(errmsg, tuple) and len(errmsg) > 1:
         print(f"{Fore.LIGHTGREEN_EX}Help: {Fore.RESET}{errmsg[1]}")
-    error_info.error_table.append(error_id)
+    error_info.error_table.append(
+        {
+            "id": error_id,
+            "name": getattr(ErrorIDNames, error_id),
+            "representation": error_type(*args)
+            if isinstance(error_type(*args), str)
+            else error_type(*args)[0],
+        }
+    )
 
 
 def error_exit(errinfomod: ErrorInfo):
@@ -303,11 +345,10 @@ def error_exit(errinfomod: ErrorInfo):
             "To explain all the errors you've encountered, you might run a command like"
             " this:"
         )
-        sorted_errors = list(set(errinfomod.error_table))
-        sorted_errors.sort()
+        sorted_errors = sorted(errinfomod.error_table)
         print(
             f"{Fore.LIGHTYELLOW_EX}    dust{Fore.RESET} --explain {
-                ','.join(sorted_errors)
+                ','.join(err['id'] for err in sorted_errors)
             }"
         )
     print(f"{Fore.RED}Exiting due to failure...{Fore.RESET}")
