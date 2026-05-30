@@ -109,7 +109,7 @@ def interpret(file):
 
 if args.test:
     directory = Path(args.test).resolve()
-    for fp in directory.glob("*dtest"):
+    for fp in directory.glob("*dstest"):
         with open(fp, encoding="utf-8") as f:
             parser = DustTestParser(f.read(), fp)
             ast = parser.parse()
