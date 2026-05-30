@@ -1,0 +1,95 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Dust Test",
+	"scopeName": "source.dstest",
+	"fileTypes": [
+		"dstest"
+	],
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#test-structure"
+		},
+		{
+			"include": "#test-keywords"
+		},
+		{
+			"include": "#test-builtins"
+		},
+		{
+			"include": "#operators"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#numbers"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.double-slash.dstest",
+					"match": "//.*$"
+				},
+				{
+					"name": "comment.block.dstest",
+					"begin": "/\\*",
+					"end": "\\*/"
+				}
+			]
+		},
+		"test-structure": {
+			"patterns": [
+				{
+					"name": "keyword.control.definition.dstest",
+					"match": "\\b(test|run_test)\\b"
+				}
+			]
+		},
+		"test-keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.flow.dstest",
+					"match": "\\b(run|expect|otherwise|contains)\\b"
+				}
+			]
+		},
+		"test-builtins": {
+			"patterns": [
+				{
+					"name": "support.variable.dstest",
+					"match": "\\b(exit|stdout|error)\\b"
+				}
+			]
+		},
+		"operators": {
+			"patterns": [
+				{
+					"name": "keyword.operator.dstest",
+					"match": "==|!=|=|[\\+\\-\\*\\/<>]"
+				}
+			]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"name": "string.quoted.double.dstest",
+					"begin": "\"",
+					"end": "\""
+				}
+			]
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric.dstest",
+					"match": "\\b[0-9]+\\b"
+				}
+			]
+		}
+	}
+}

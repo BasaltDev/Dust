@@ -1,0 +1,35 @@
+{
+  "name": "dust-language-support",
+  "displayName": "Dust Language Support",
+  "description": "Language support for the Dust programming language by BasaltDev",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.120.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "dust",
+      "aliases": ["Dust", "dust"],
+      "extensions": [".ds"],
+      "configuration": "./language-configuration.json"
+    }, {
+      "id": "dust-test",
+      "aliases": ["Dust Test", "dust-test"],
+      "extensions": [".dstest"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "dust",
+      "scopeName": "source.ds",
+      "path": "./syntaxes/dust.tmLanguage.json"
+    },
+  {
+      "language": "dust-test",
+      "scopeName": "source.dstest",
+      "path": "./syntaxes/dstest.tmLanguage.json"
+    }]
+  }
+}

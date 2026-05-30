@@ -1,0 +1,123 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Dust",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#types"
+		},
+		{
+			"include": "#casts"
+		},
+		{
+			"include": "#functions"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#operators"
+		},
+		{
+			"include": "#constants"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.double-slash.dust",
+					"match": "//.*$"
+				},
+				{
+					"name": "comment.block.dust",
+					"begin": "/\\*",
+					"end": "\\*/"
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.dust",
+					"match": "\\b(if|else|while|for|func|return)\\b"
+				},
+				{
+					"name": "storage.type.dust",
+					"match": "\\b(let|const)\\b"
+				}
+			]
+		},
+		"constants": {
+			"patterns": [
+				{
+					"name": "constant.language.dust",
+					"match": "\\b(RECURSION_LIMIT)\\b"
+				},
+				{
+					"name": "constant.numeric.dust",
+					"match": "\\b[0-9]+\\b"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.dust",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.dust",
+					"match": "\\\\."
+				}
+			]
+		},
+		"functions": {
+			"patterns": [
+				{
+					"name": "entity.name.function.dust",
+					"match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b(?=\\s*\\()"
+				}
+			]
+		},
+		"types": {
+			"patterns": [
+				{
+					"name": "support.type.dust",
+					"match": "\\b(int|string|bool|float)\\b"
+				}
+			]
+		},
+		"casts": {
+			"patterns": [
+				{
+					"match": "(<)(int|string|bool|float)(>)",
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.tag.dust"
+						},
+						"2": {
+							"name": "support.type.dust"
+						},
+						"3": {
+							"name": "punctuation.definition.tag.dust"
+						}
+					}
+				}
+			]
+		},
+		"operators": {
+			"patterns": [
+				{
+					"name": "keyword.operator.dust",
+					"match": "==|!=|<=|>=|\\+=|-=|&&|\\|\\||[\\+\\-\\*\\/=%<>!]"
+				}
+			]
+		}
+	},
+	"scopeName": "source.ds"
+}
