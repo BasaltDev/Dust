@@ -30,7 +30,7 @@ errored = False
 class Env:
     def __init__(self, errinfomod, parent=None):
         self.symbols = (
-            {} if parent else {"RECURSION_LIMIT": {"type": "var", "const": False}}
+            {} if parent else {"RECURSION_LIMIT": {"type": "var", "const": True}}
         )
         self.errinfomod = errinfomod
         self.parent = parent
@@ -119,15 +119,15 @@ class Analyzer:
 
     def resolve_truthiness(self, node):
         global errored
-        if isinstance(self.cn.condition, Literal) and not isinstance(
-            self.cn.condition.value, bool
-        ) and not self.cn.condition.type == "Ident":
+        if isinstance(node.condition, Literal) and not isinstance(
+            node.condition.value, bool
+        ) and not node.condition.type == "Ident":
             _error(
                 self.errinfomod,
                 ErrorType.ConditionalTypeMismatch,
                 ErrorIDs.ConditionalTypeMismatch,
-                f"{self.cn.condition.line}-{self.cn.condition.lineEnd}:{self.cn.condition.col}-{self.cn.condition.colEnd}",
-                python_to_dust_type_map[type(self.cn.condition.value)],
+                f"{node.condition.line}-{node.condition.lineEnd}:{node.condition.col}-{node.condition.colEnd}",
+                python_to_dust_type_map[type(node.condition.value)],
             )
             errored = True
         return False
@@ -158,7 +158,7 @@ class Analyzer:
                         errored = True
                     self.env.define(self.cn.name, "var")
                 case "IfStatement":
-                    self.resolve_truthiness(self.cn.condition)
+                    self.resolve_truthiness(self.cn)
                     Analyzer(
                         self.cn.true_body,
                         self.filename,
@@ -176,7 +176,7 @@ class Analyzer:
                         function=self.function,
                     ).analyze()
                 case "WhileStatement":
-                    self.resolve_truthiness(self.cn.condition)
+                    self.resolve_truthiness(self.cn)
                     Analyzer(
                         self.cn.body,
                         self.filename,

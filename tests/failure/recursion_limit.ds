@@ -1,3 +1,4 @@
+// this example program now no longer works because RECURSION_LIMIT is a const
 print("⚠️  WARNING! This program may waste your computer's memory, and it might reach a segfault, eventually, in the next 25 years...");
 let inp = input("Do you want to continue? [Y|N] ");
 let cnt = inp == "Y" || inp == "y";

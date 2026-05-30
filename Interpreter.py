@@ -30,6 +30,7 @@ def _error(
     error(error_info, error_type, error_id, position_info, *args)
     _exit(error_info, 1)
 
+
 stack_frame = 0
 
 
@@ -82,7 +83,9 @@ class Function:
 
 class Env:
     def __init__(self, errinfomod, parent=None):
-        self.symbols = {} if parent else {"RECURSION_LIMIT": Variable(1000, typ="int")}
+        self.symbols = (
+            {} if parent else {"RECURSION_LIMIT": Variable(1000, typ="int", const=True)}
+        )
         self.errinfomod = errinfomod
         self.parent: Env = parent
 
@@ -500,7 +503,7 @@ class Interpreter:
                 ErrorType.RecursionDepthError,
                 ErrorIDs.RecursionDepthError,
                 f"{self.cn.line}-{self.cn.lineEnd}:{self.cn.col}-{self.cn.colEnd}",
-                self.env.lookup("RECURSION_LIMIT")
+                self.env.lookup("RECURSION_LIMIT"),
             )
         while self.cn is not None:
             res = self.parse_node(self.cn)
