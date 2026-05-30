@@ -187,6 +187,10 @@ the function definition to expect a different number of arguments.",
             "Try using a valid, existing data type.",
         )
 
+    @staticmethod
+    def RecursionDepthError(recursion_depth):
+        return f"Maximum recursion depth ({recursion_depth}) reached and exceeded"
+
 
 class ErrorIDs:
     MalformedString = "E0001"
@@ -207,6 +211,7 @@ class ErrorIDs:
     ArgumentCountMismatch = "E0014"
     AlreadyDefinedSymbol = "E0015"
     NotAType = "E0016"
+    RecursionDepthError = "E0017"
 
 
 def error(

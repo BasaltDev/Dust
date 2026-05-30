@@ -29,7 +29,9 @@ errored = False
 
 class Env:
     def __init__(self, errinfomod, parent=None):
-        self.symbols = {}
+        self.symbols = (
+            {} if parent else {"RECURSION_LIMIT": {"type": "var", "const": False}}
+        )
         self.errinfomod = errinfomod
         self.parent = parent
 
@@ -119,7 +121,7 @@ class Analyzer:
         global errored
         if isinstance(self.cn.condition, Literal) and not isinstance(
             self.cn.condition.value, bool
-        ):
+        ) and not self.cn.condition.type == "Ident":
             _error(
                 self.errinfomod,
                 ErrorType.ConditionalTypeMismatch,
@@ -223,7 +225,8 @@ class Analyzer:
                     ).analyze()
                 case "FunctionCall":
                     func = self.env.lookup(self.cn.name, self.cn)
-                    if func["type"] != "function":
+                    erroredrn = False
+                    if func["type"] != "function" and not self.function:
                         _error(
                             self.errinfomod,
                             ErrorType.NotAFunction,
@@ -232,17 +235,21 @@ class Analyzer:
                             self.cn.name,
                         )
                         errored = True
-                    if len(self.cn.args) != len(func["params"]):
-                        _error(
-                            self.errinfomod,
-                            ErrorType.ArgumentCountMismatch,
-                            ErrorIDs.ArgumentCountMismatch,
-                            f"{self.cn.line}-{self.cn.lineEnd}:{self.cn.col}-{self.cn.colEnd}",
-                            self.cn.name,
-                            len(func["params"]),
-                            len(self.cn.args),
-                        )
-                        errored = True
+                        erroredrn = True
+                    if not erroredrn:
+                        if not self.function and len(self.cn.args) != len(
+                            func["params"]
+                        ):
+                            _error(
+                                self.errinfomod,
+                                ErrorType.ArgumentCountMismatch,
+                                ErrorIDs.ArgumentCountMismatch,
+                                f"{self.cn.line}-{self.cn.lineEnd}:{self.cn.col}-{self.cn.colEnd}",
+                                self.cn.name,
+                                len(func["params"]),
+                                len(self.cn.args),
+                            )
+                            errored = True
                     for arg in self.cn.args:
                         self.handle_expression(arg)
                 case "ReturnStatement":

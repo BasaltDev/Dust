@@ -21,11 +21,16 @@ def _exit(error_info, code=1):
     sys.exit(code)
 
 
+sys.setrecursionlimit(25000)
+
+
 def _error(
     error_info: ErrorInfo, error_type, error_id: ErrorIDs, position_info: str, *args
 ):
     error(error_info, error_type, error_id, position_info, *args)
     _exit(error_info, 1)
+
+stack_frame = 0
 
 
 class Variable:
@@ -77,11 +82,13 @@ class Function:
 
 class Env:
     def __init__(self, errinfomod, parent=None):
-        self.symbols = {}
+        self.symbols = {} if parent else {"RECURSION_LIMIT": Variable(1000, typ="int")}
         self.errinfomod = errinfomod
         self.parent: Env = parent
 
     def define(self, name, value, redefining=False):
+        if redefining and name == "RECURSION_LIMIT":
+            sys.setrecursionlimit(value.value * 25)
         if redefining:
             if self.parent and self.parent.lookup(
                 name, auto_resolve=False, error_on_fail_lookup=False
@@ -432,7 +439,7 @@ class Interpreter:
         for i, v in enumerate(func.params):
             resolved = self.handle_expression(node.args[i])
             arguments[v] = resolved
-        env = Env(self.errinfomod)
+        env = Env(self.errinfomod, self.env)
         idx = 0
         for i, v in arguments.items():
             env.define(
@@ -453,6 +460,7 @@ class Interpreter:
             return result
 
     def parse_node(self, node):
+        global stack_frame
         match node.node_type():
             case "PrintStatement":
                 self.handle_print_statement(node)
@@ -477,13 +485,23 @@ class Interpreter:
             case "FunctionStatement":
                 self.handle_function_statement(node)
             case "FunctionCall":
+                stack_frame += 1
                 res = self.handle_function_call(node)
+                stack_frame -= 1
                 if res is not None:
                     return res
             case "ReturnStatement":
                 return self.handle_expression(node.value)
 
     def interpret(self):
+        if stack_frame >= self.env.lookup("RECURSION_LIMIT"):
+            _error(
+                self.errinfomod,
+                ErrorType.RecursionDepthError,
+                ErrorIDs.RecursionDepthError,
+                f"{self.cn.line}-{self.cn.lineEnd}:{self.cn.col}-{self.cn.colEnd}",
+                self.env.lookup("RECURSION_LIMIT")
+            )
         while self.cn is not None:
             res = self.parse_node(self.cn)
             if res is not None:

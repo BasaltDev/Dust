@@ -1,0 +1,15 @@
+print("⚠️  WARNING! This program may waste your computer's memory, and it might reach a segfault, eventually, in the next 25 years...");
+let inp = input("Do you want to continue? [Y|N] ");
+let cnt = inp == "Y" || inp == "y";
+if cnt {
+    func a(num) {
+        print(num);
+        /*if num == 1000 {
+            return 0;
+        }*/
+        RECURSION_LIMIT++;
+        a(num + 1);
+    }
+    a(1);
+    // hahaha, try surviving this, CPU!
+}
