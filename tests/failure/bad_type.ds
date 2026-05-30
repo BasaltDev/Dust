@@ -1,2 +1,2 @@
-let a: AYO = 20; // bad type!
+let a: hi = 20; // bad type!
 print(a);
