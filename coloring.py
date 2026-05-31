@@ -1,3 +1,5 @@
+# Derived from Colorama
+
 CSI = "\033["
 
 

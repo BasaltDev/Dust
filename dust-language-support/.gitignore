@@ -1,0 +1,5 @@
+node_modules
+*.vsix
+.env
+server/core/*
+./buildext.bat

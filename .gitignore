@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.vscode
+tests/other/
+DustTest-tests/
+*.bat
+node_modules/
+*.json

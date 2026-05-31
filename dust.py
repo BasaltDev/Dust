@@ -12,7 +12,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from Analyzer import Analyzer
-from coloring import Fore
+from coloring import Fore, Style
 from DustTest import DustTestInterpreter, DustTestParser
 from Error import ErrorIDs, ErrorInfo, ErrorType, error
 from Explanations import EXPLANATIONS
@@ -137,19 +137,26 @@ if __name__ == "__main__":
             else:
                 found = True
                 print(
-                    f"{'┎' if cnt < 1 else '┠'}{f'`{val}` EXPLANATION':─^123}{
-                        '┒' if cnt < 1 else '┨'
-                    }"
+                    f"{Style.DIM}{'╭' if cnt < 1 else '┠'}{
+                        f'{Style.RESET_ALL}`{val}` EXPLANATION{Style.DIM}':─^131}{
+                        '╮' if cnt < 1 else '┨'
+                    }{Style.RESET_ALL}"
                 )
                 for i in value.split("\n"):
                     visible_len = len(ANSI_ESCAPE.sub("", i))
                     padding = " " * (121 - visible_len)
-                    print(f"┃ {i}{padding} ┃")
+                    print(
+                        f"{Style.DIM}│{Style.RESET_ALL} {i}{padding} \
+{Style.DIM}│{Style.RESET_ALL}"
+                    )
                 if cnt < len(args.explain) - 1:
-                    print(f"┃{' ' * 123}┃")
+                    print(
+                        f"{Style.DIM}│{Style.RESET_ALL}{' ' * 123}{Style.DIM}│\
+{Style.RESET_ALL}"
+                    )
             cnt += 1
         if found:
-            print(f"┖{'─' * 123}┚")
+            print(f"{Style.DIM}╰{'─' * 123}╯{Style.RESET_ALL}")
     elif args.run:
         interpret(args.run)
     elif args.check:

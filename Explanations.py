@@ -182,3 +182,44 @@ print{Fore.RESET}(<{Fore.YELLOW}int{Fore.RESET}>{Fore.GREEN}"123"{Fore.RESET});{
     E0012 = f"""E0012 is the {Fore.RED}Keyboard Interrupt{Fore.RESET} error code.
 This needs no explanation; this error occurs when the user interrupts the program,
 usually by pressing Ctrl+C."""
+    E0013 = f"""E0013 is the {Fore.RED}Not a Function{Fore.RESET} error code.
+The Not a Function error occurs when you try to call something that isn't a function,
+for example:
+    {Back.BLACK}{Fore.YELLOW}let{Fore.RESET} a = 10;{Back.RESET}
+    {Back.BLACK}{Fore.RED}a();{Fore.GREEN} // trying to call an int variable\
+{Style.RESET_ALL}
+There are two fixes:
+    - defining the callee as a function
+    - removing the function call."""
+    E0014 = f"""E0014 is the {Fore.RED}Argument Count Mismatch{Fore.RESET} error code.
+The Argument Count Mismatch error occurs when you pass the incorrect amount of s\
+arguments to a function. For example:
+    {Back.BLACK}{Fore.YELLOW}func{Fore.RESET} sum(x, y) {{{Back.RESET}
+    {Back.BLACK}    {Fore.YELLOW}return{Fore.RESET} x + y;{Back.RESET}
+    {Back.BLACK}}}{Back.RESET}
+    {Back.BLACK}{Fore.YELLOW}print{Fore.RESET}({Fore.RED}sum(10, 20, 30){Fore.RESET}); \
+{Fore.GREEN}// calling sum() with 3 arguments instead of 2{Style.RESET_ALL}
+There are two fixes:
+    - changing the function signature
+    - removing the extra arguments"""
+    E0015 = f"""E0015 is the {Fore.RED}Already Defined Symbol{Fore.RESET} error code.
+The Already Defined Symbol error occurs when you try to define a symbol
+(using let or func) that already exists, for example:
+    {Back.BLACK}{Fore.YELLOW}let{Fore.RESET} a = 10;{Back.RESET}
+    {Back.BLACK}{Style.DIM}...{Style.RESET_ALL}
+    {Back.BLACK}{Fore.YELLOW}let{Fore.RESET} a = 20;{Fore.GREEN} // \
+assigning to a after already assigning it{Style.RESET_ALL}
+There are two fixes:
+    - removing the original definition
+    - changing the second definition to a reassignment."""
+    E0016 = f"""E0016 is the {Fore.RED}Not a Type{Fore.RESET} error code.
+The Not a Type error occurs when you try to put something that is not a valid
+data type as an annotation for a let statement or a function parameter, for example:
+    {Back.BLACK}{Fore.YELLOW}let{Fore.RESET} a: {Fore.RED}HIIII{Fore.RESET} = 10; \
+{Fore.GREEN}// `HIIII` is not a type{Style.RESET_ALL}
+There are two fixes:
+    - change the type
+    - remove the annotation."""
+    E0017 = f"""E0017 is the {Fore.RED}Recursion Depth Error{Fore.RESET} code.
+It occurs when you exceed 1000 stack frames. There is no specific explanation
+or fix for it."""

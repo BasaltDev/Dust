@@ -345,7 +345,8 @@ def error_exit(errinfomod: ErrorInfo):
             "To explain all the errors you've encountered, you might run a command like"
             " this:"
         )
-        sorted_errors = sorted(errinfomod.error_table)
+        sorted_errors = errinfomod.error_table.copy()
+        sorted_errors.sort(key=lambda x: x["id"])
         print(
             f"{Fore.LIGHTYELLOW_EX}    dust{Fore.RESET} --explain {
                 ','.join(err['id'] for err in sorted_errors)
