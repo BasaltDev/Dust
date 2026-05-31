@@ -1,4 +1,4 @@
-/* Gradual Typing test
+// Gradual Typing test
 let a: int = 10;
 print(a);
 a = 20;
@@ -6,63 +6,63 @@ print(a);
 let b = 20;
 print(b);
 //b = "30";
-print(b);*/
+print(b);
 
-/* If Statement and Scoping test
-let a = 10;
+// If Statement and Scoping test
+let c = 10;
 
 if (1 + 3 - 5 * 2 / 5 % 7) != 2.0 {
     print("yo");
-    let a = 20;
-    a = 30;
-    print(a);
+    let c = 20;
+    c = 30;
+    print(c);
 } else if 2 != 2 {
-    a = 67;
+    c = 67;
     print("hi");
 } else {
-    a = 69;
+    c = 69;
     print("YO");
 }
-print(a);*/
+print(c);
 
-/* While test
+// While test
 let i = 0;
 while i <= 10 {
     print("yo", i);
     i = i + 1;
 }
 
-/* Compound Assignment and Increment test
-let b = 1;
-b += 2;
-print(b);
-let c = -1;
-c -= 1;
-print(c);
-c++;
-c++;
-c++;
-print(c);
-c--;
-print(c);*/
+// Compound Assignment and Increment test
+let d = 1;
+d += 2;
+print(d);
+let e = -1;
+e -= 1;
+print(e);
+e++;
+e++;
+e++;
+print(e);
+e--;
+print(e);
 
-/* Type Cast test
+// Type Cast test
 let var: string = <string>10;
 print(var);
 print(<int>var * 2);
 
-/* Input test
+// Input test
 if input("Yo! ") == "Yo!" {
     print("YO!!!");
 } else {
     print("yo...");
 }
-let a = <int>input("hi, enter a number please: ") + 20;
-print(a + 20);*/
+let f = <int>input("hi, enter a number please: ") + 20;
+print(f + 20);
 
-/* Function test
+// Function test
 func sum(a, b) {
     return a + b;
 }
-let a = sum(10, 20);
-print(a);*/
+let g = sum(10, 20);
+print(g);

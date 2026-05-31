@@ -4,7 +4,6 @@ __pycache__/
 *.pyd
 .vscode
 tests/other/
-DustTest-tests/
 *.bat
 node_modules/
 *.json

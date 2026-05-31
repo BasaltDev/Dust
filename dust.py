@@ -13,7 +13,7 @@ from pathlib import Path
 
 from Analyzer import Analyzer
 from coloring import Fore, Style
-from DustTest import DustTestInterpreter, DustTestParser
+from DustTest import DustTestInterpreter, DustTestParser, tests
 from Error import ErrorIDs, ErrorInfo, ErrorType, error
 from Explanations import EXPLANATIONS
 from Interpreter import Interpreter
@@ -117,12 +117,21 @@ def interpret(file):
 
 if __name__ == "__main__":
     if args.test:
+        start_time = time.perf_counter()
         directory = Path(args.test).resolve()
         for fp in directory.glob("*dstest"):
             with open(fp, encoding="utf-8") as f:
                 parser = DustTestParser(f.read(), fp)
                 ast = parser.parse()
-                DustTestInterpreter(ast).interpret()
+                DustTestInterpreter(ast, parent=True).interpret()
+        print(f"{Fore.YELLOW}STATS:{Fore.RESET}")
+        print(
+            f"{Fore.GREEN}{tests[0]}{Fore.RESET} successful tests, {Fore.RED}{tests[1]}{
+                Fore.RESET
+            } unsuccessful tests"
+        )
+        end_time = time.perf_counter()
+        print(f"Ran in {Fore.YELLOW}{(end_time - start_time) * 1000:.2f}ms{Fore.RESET}")
     elif args.explain:
         args.explain.sort()
         import re

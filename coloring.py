@@ -1,6 +1,6 @@
-# Derived from Colorama
+import os
 
-CSI = "\033["
+# Derived from Colorama
 
 
 class Fore:
@@ -50,3 +50,15 @@ class Style:
     DIM = f"\033[{2}m"
     NORMAL = f"\033[{22}m"
     RESET_ALL = f"\033[{0}m"
+
+
+if "NO_COLOR" in os.environ:
+    for a in dir(Fore):
+        if not a.startswith("__"):
+            setattr(Fore, a, "")
+    for a in dir(Back):
+        if not a.startswith("__"):
+            setattr(Back, a, "")
+    for a in dir(Style):
+        if not a.startswith("__"):
+            setattr(Style, a, "")

@@ -5,6 +5,8 @@ import subprocess
 import sys
 from enum import Enum, auto
 
+from coloring import Fore
+
 
 class TokenType(Enum):
     IDENTIFIER = auto()
@@ -46,8 +48,10 @@ class Token:
 class DustTestLexer:
     KEYWORDS = {
         "test": TokenType.KEYWORD,
+        "group": TokenType.KEYWORD,
         "run": TokenType.KEYWORD,
         "run_test": TokenType.KEYWORD,
+        "run_group": TokenType.KEYWORD,
         "expect": TokenType.KEYWORD,
         "otherwise": TokenType.KEYWORD,
         "contains": TokenType.KEYWORD,
@@ -266,12 +270,29 @@ class Test:
         return f"Test(name={self.name}, ast={self.ast})"
 
 
+class Group:
+    def __init__(self, name, ast):
+        self.name = name
+        self.ast = ast
+
+    def __repr__(self):
+        return f"Test(name={self.name}, ast={self.ast})"
+
+
 class RunTest:
     def __init__(self, test):
         self.test = test
 
     def __repr__(self):
         return f"RunTest(test={self.test})"
+
+
+class RunGroup:
+    def __init__(self, test):
+        self.test = test
+
+    def __repr__(self):
+        return f"RunGroup(test={self.test})"
 
 
 class Log:
@@ -367,10 +388,38 @@ class DustTestParser:
                     self.adv()
                 ast = DustTestParser(tokens, self.filename, src_available=False).parse()
                 return Test(name, ast)
+            elif self.ct.value == "group":
+                self.adv()
+                name = self.parse_value()
+                self.adv(2)
+                block = 1
+                tokens = []
+                while self.ct:
+                    if self.ct == TokenType.LEFTBRACE:
+                        block += 1
+                    if self.ct == TokenType.RIGHTBRACE:
+                        block -= 1
+                    if block == 0:
+                        break
+                    tokens.append(self.ct)
+                    self.adv()
+                ast = DustTestParser(tokens, self.filename, src_available=False).parse()
+                tests = []
+                buffer = []
+                for i in ast:
+                    if isinstance(i, Test):
+                        tests.append(i)
+                        buffer.append(RunTest(i.name))
+                tests += buffer
+                return Group(name, tests)
             elif self.ct.value == "run_test":
                 self.adv()
                 name = self.parse_value()
                 return RunTest(name)
+            elif self.ct.value == "run_group":
+                self.adv()
+                name = self.parse_value()
+                return RunGroup(name)
             elif self.ct.value == "log":
                 self.adv()
                 return Log(self.parse_value())
@@ -387,14 +436,24 @@ class DustTestParser:
         return self.ast
 
 
-env = {"variables": {}, "stdout": "", "exit": None, "error": "", "tests": {}}
+env = {
+    "variables": {"STDIN": []},
+    "stdout": "",
+    "exit": None,
+    "error": "",
+    "tests": {},
+    "groups": {},
+}
+tests = [0, 0]
 
 
 class DustTestInterpreter:
-    def __init__(self, ast):
+    def __init__(self, ast, test_name_prefix="", parent=False):
         self.ast = ast
+        self.parent = parent
         self.pos = -1
         self.cn: Assignment | Run | Test | RunTest = None
+        self.test_name_prefix = test_name_prefix
         self.adv()
 
     def adv(self):
@@ -429,17 +488,24 @@ class DustTestInterpreter:
                 env["variables"][self.cn.name] = self.resolve(self.cn.value)
             elif isinstance(self.cn, Test):
                 env["tests"][self.resolve(self.cn.name)] = self.cn.ast
+            elif isinstance(self.cn, Group):
+                env["groups"][self.resolve(self.cn.name)] = self.cn.ast
             elif isinstance(self.cn, Run):
                 result: subprocess.CompletedProcess = subprocess.run(
                     ["python", "-S", "dust.py", "--run", self.resolve(self.cn.value)],
                     capture_output=True,
+                    input="\n".join(str(val) for val in env["variables"]["STDIN"]),
                     text=True,
                     encoding="utf-8",
                 )
+                env["variables"]["STDIN"] = ""
                 env["stdout"] = result.stdout.strip()
                 env["exit"] = result.returncode
                 if env["exit"] != 0:
                     last_index = result.stdout.rfind("Error[")
+                    if not last_index:
+                        self.adv()
+                        continue
                     idx = last_index + 6
                     error_code = result.stdout[idx]
                     while result.stdout[idx] != "]":
@@ -457,9 +523,32 @@ class DustTestInterpreter:
                 print(f"Running test `{name}`...")
                 result = DustTestInterpreter(env["tests"][name]).interpret()
                 if result is None:
-                    print(f"Test `{name}` ran successfully, no issues")
+                    print(
+                        f"Test `{self.test_name_prefix}{name}` {Fore.GREEN}ran \
+successfully{Fore.RESET}, no issues"
+                    )
+                    tests[0] += 1
                 else:
-                    print(f"Test `{name}` did not run successfully: {result}")
+                    print(
+                        f"Test `{self.test_name_prefix}{name}` {Fore.RED}did not run \
+successfully{Fore.RESET}: {result}"
+                    )
+                    tests[1] += 1
+            elif isinstance(self.cn, RunGroup):
+                name = self.resolve(self.cn.test)
+                result = DustTestInterpreter(
+                    env["groups"][name], test_name_prefix=name + "/"
+                ).interpret()
+                if result is None:
+                    print(
+                        f"Test group `{name}` {Fore.GREEN}ran successfully{Fore.RESET},\
+ no issues"
+                    )
+                else:
+                    print(
+                        f"Test group `{name}` {Fore.RED}did not run successfully\
+{Fore.RESET}:{result}"
+                    )
             elif isinstance(self.cn, Log):
                 print(self.resolve(self.cn.value))
             self.adv()

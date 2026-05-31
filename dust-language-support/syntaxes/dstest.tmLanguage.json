@@ -46,7 +46,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.definition.dstest",
-					"match": "\\b(test|run_test)\\b"
+					"match": "\\b(test|run_test|run_group|group)\\b"
 				}
 			]
 		},
@@ -54,7 +54,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.flow.dstest",
-					"match": "\\b(run|expect|otherwise|contains)\\b"
+					"match": "\\b(run|log|expect|otherwise|contains)\\b"
 				}
 			]
 		},
@@ -62,7 +62,7 @@
 			"patterns": [
 				{
 					"name": "support.variable.dstest",
-					"match": "\\b(exit|stdout|error)\\b"
+					"match": "\\b(exit|stdout|error|STDIN)\\b"
 				}
 			]
 		},
