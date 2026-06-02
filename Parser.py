@@ -7,8 +7,10 @@ from AST import (
     BinOp,
     BreakStatement,
     ContinueStatement,
+    ForStatement,
     FunctionCall,
     FunctionStatement,
+    GetItem,
     IfStatement,
     InputStatement,
     LetStatement,
@@ -48,6 +50,7 @@ class Parser:
             "input": self.parse_input_statement,
             "func": self.parse_function,
             "return": self.parse_return_statement,
+            "for": self.parse_for_statement,
         }
         self.EXPR_KEYWORDS = {"input": lambda: self.parse_input_statement(expr=True)}
         self.adv()
@@ -91,6 +94,7 @@ class Parser:
 
     def literalify(self, token: Token):
         typ = "???"
+        value = token.value
         match token.type:
             case TokenType.IDENTIFIER:
                 typ = "Ident"
@@ -102,9 +106,20 @@ class Parser:
                 typ = "String"
             case TokenType.BOOLEAN:
                 typ = "Bool"
-        return Literal(
-            typ, token.value, token.line, token.line, token.col, token.colEnd
-        )
+            case TokenType.LEFTBRACKET:
+                self.adv()
+                typ = "Array"
+                value = []
+                while self.ct and self.ct != TokenType.RIGHTBRACKET:
+                    value.append(
+                        self.parse_expression(
+                            ending=TokenType.RIGHTBRACKET, altEnding=TokenType.COMMA
+                        )
+                    )
+                    if self.ct == TokenType.RIGHTBRACKET:
+                        break
+                    self.adv()
+        return Literal(typ, value, token.line, token.line, token.col, token.colEnd)
 
     def parse_expression(self, ending=TokenType.SEMICOLON, altEnding=None):
         OPERATOR_MAP = {
@@ -174,6 +189,16 @@ class Parser:
                 value = self.parse_function_call(expr=True)
                 operands.append(value)
                 last_item = value
+            elif (
+                self.ct == TokenType.IDENTIFIER and self.peek() == TokenType.LEFTBRACKET
+            ):
+                name = self.ct.value
+                self.adv(2)
+                value = GetItem(
+                    name, self.parse_expression(ending=TokenType.RIGHTBRACKET)
+                )
+                operands.append(value)
+                last_item = value
             elif self.ct in (
                 TokenType.PLUS,
                 TokenType.MINUS,
@@ -206,8 +231,7 @@ class Parser:
             (i in ("--", "!") or (i.startswith("<") and i.endswith(">")))
             for i in operators
         ):
-            idx = 0
-            for op in operators:
+            for idx, op in enumerate(operators):
                 if op in ("--", "!") or (op.startswith("<") and op.endswith(">")):
                     operand = operands[idx]
                     operands[idx] = UnaryOp(
@@ -227,11 +251,8 @@ class Parser:
                     del operators[idx]
                     del operator_tokens[idx]
                     break
-                else:
-                    idx += 1
         while any(i in ("*", "/", "%") for i in operators):
-            idx = 0
-            for op in operators:
+            for idx, op in enumerate(operators):
                 if op in ("*", "/", "%"):
                     op1 = operands[idx]
                     op2 = operands[idx + 1]
@@ -242,11 +263,8 @@ class Parser:
                     del operators[idx]
                     del operator_tokens[idx]
                     break
-                else:
-                    idx += 1
         while any(i in ("+", "-") for i in operators):
-            idx = 0
-            for op in operators:
+            for idx, op in enumerate(operators):
                 if op in ("+", "-"):
                     op1 = operands[idx]
                     op2 = operands[idx + 1]
@@ -257,11 +275,8 @@ class Parser:
                     del operators[idx]
                     del operator_tokens[idx]
                     break
-                else:
-                    idx += 1
         while any(i in ("==", "!=") for i in operators):
-            idx = 0
-            for op in operators:
+            for idx, op in enumerate(operators):
                 if op in ("==", "!="):
                     op1 = operands[idx]
                     op2 = operands[idx + 1]
@@ -272,11 +287,8 @@ class Parser:
                     del operators[idx]
                     del operator_tokens[idx]
                     break
-                else:
-                    idx += 1
         while any(i in ("<", ">", "<=", ">=") for i in operators):
-            idx = 0
-            for op in operators:
+            for idx, op in enumerate(operators):
                 if op in ("<", ">", "<=", ">="):
                     op1 = operands[idx]
                     op2 = operands[idx + 1]
@@ -287,11 +299,9 @@ class Parser:
                     del operators[idx]
                     del operator_tokens[idx]
                     break
-                else:
-                    idx += 1
         while "&&" in operators:
             idx = 0
-            for op in operators:
+            for idx, op in enumerate(operators):
                 if op == "&&":
                     op1 = operands[idx]
                     op2 = operands[idx + 1]
@@ -302,11 +312,9 @@ class Parser:
                     del operators[idx]
                     del operator_tokens[idx]
                     break
-                else:
-                    idx += 1
         while "||" in operators:
             idx = 0
-            for op in operators:
+            for idx, op in enumerate(operators):
                 if op == "||":
                     op1 = operands[idx]
                     op2 = operands[idx + 1]
@@ -317,8 +325,6 @@ class Parser:
                     del operators[idx]
                     del operator_tokens[idx]
                     break
-                else:
-                    idx += 1
         return operands[0]
 
     def parse_print_statement(self):
@@ -353,7 +359,7 @@ class Parser:
             ErrorType.NotAType,
             ErrorIDs.NotAType,
             f"{self.ct.line}:{self.ct.col}-{self.ct.colEnd}",
-            self.ct.value
+            self.ct.value,
         )
         self.errored = True
 
@@ -389,17 +395,23 @@ class Parser:
             const=const,
         )
 
-    def parse_reassignment(self):
+    def parse_reassignment(self, name_token):
         line = self.ct.line
         col = self.ct.col
-        name = self.ct.value
         self.adv(2)
         value = self.parse_expression()
         if not self.expect_token(TokenType.SEMICOLON):
             return
         colEnd = self.ct.colEnd
         lineEnd = self.ct.line
-        return VariableReassignment(name, value, line, lineEnd, col, colEnd)
+        return VariableReassignment(
+            name_token if not isinstance(name_token, Token) else name_token.value,
+            value,
+            line,
+            lineEnd,
+            col,
+            colEnd,
+        )
 
     def parse_block_statement(self):
         self.adv()
@@ -455,7 +467,6 @@ class Parser:
     def parse_compound_assignment(self, name_token, operator):
         line = self.ct.line
         col = self.ct.col
-        name = self.ct.value
         self.adv(2)
         value = self.parse_expression()
         if not self.expect_token(TokenType.SEMICOLON):
@@ -463,9 +474,24 @@ class Parser:
         colEnd = self.ct.colEnd
         lineEnd = self.ct.line
         expr = BinOp(
-            self.literalify(name_token), value, operator[0], line, lineEnd, col, colEnd
+            name_token
+            if not isinstance(name_token, Token)
+            else self.literalify(name_token),
+            value,
+            operator[0],
+            line,
+            lineEnd,
+            col,
+            colEnd,
         )
-        return VariableReassignment(name, expr, line, lineEnd, col, colEnd)
+        return VariableReassignment(
+            name_token if not isinstance(name_token, Token) else name_token.value,
+            expr,
+            line,
+            lineEnd,
+            col,
+            colEnd,
+        )
 
     def parse_incrementation_decrementation(self, name_token, typ, expr=False):
         line = self.ct.line
@@ -542,6 +568,7 @@ class Parser:
             if self.ct == TokenType.COLON:
                 self.adv()
                 param_type = self.parse_data_type()
+                self.adv()
             params[param_name] = param_type
             if self.ct == TokenType.RIGHTPAREN:
                 break
@@ -604,11 +631,54 @@ class Parser:
         colEnd = self.ct.colEnd
         return ReturnStatement(value, line, lineEnd, col, colEnd)
 
+    def parse_for_statement(self):
+        line = self.ct.line
+        col = self.ct.col
+        self.adv()
+        if not self.expect_token(TokenType.IDENTIFIER):
+            return
+        iter_name = self.ct.value
+        self.adv()
+        if not self.expect_token(Token(TokenType.KEYWORD, "in")):
+            return
+        self.adv()
+        rng = self.parse_expression(ending=TokenType.LEFTBRACE)
+        body = self.parse_block_statement()
+        lineEnd = self.ct.line
+        colEnd = self.ct.colEnd
+        return ForStatement(iter_name, rng, body, line, lineEnd, col, colEnd)
+
+    def parse_get_item(self):
+        line = self.ct.line
+        col = self.ct.col
+        name = self.ct.value
+        self.adv(2)
+        index = self.parse_expression(ending=TokenType.RIGHTBRACKET)
+        if self.peek() == TokenType.ASSIGN:
+            lineEnd = self.ct.line
+            colEnd = self.ct.colEnd
+            val = self.parse_reassignment(
+                GetItem(name, index, line, lineEnd, col, colEnd)
+            )
+        elif self.peek() == TokenType.COMPOUNDASSIGNMENT:
+            lineEnd = self.ct.line
+            colEnd = self.ct.colEnd
+            val = self.parse_compound_assignment(
+                GetItem(name, index, line, lineEnd, col, colEnd), self.peek().value[0]
+            )
+        if not self.expect_token(TokenType.SEMICOLON):
+            return
+        val.line = line
+        val.col = col
+        return val
+
     def parse_statement(self):
         if self.ct == TokenType.KEYWORD:
             return self.KEYWORD_HANDLERS[self.ct.value]()
         elif self.ct == TokenType.IDENTIFIER and self.peek() == TokenType.ASSIGN:
-            return self.parse_reassignment()
+            return self.parse_reassignment(self.ct)
+        elif self.ct == TokenType.IDENTIFIER and self.peek() == TokenType.LEFTBRACKET:
+            return self.parse_get_item()
         elif (
             self.ct == TokenType.IDENTIFIER
             and self.peek() == TokenType.COMPOUNDASSIGNMENT

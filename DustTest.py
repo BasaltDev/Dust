@@ -503,7 +503,7 @@ class DustTestInterpreter:
                 env["exit"] = result.returncode
                 if env["exit"] != 0:
                     last_index = result.stdout.rfind("Error[")
-                    if not last_index:
+                    if last_index < 0:
                         self.adv()
                         continue
                     idx = last_index + 6

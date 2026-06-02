@@ -201,7 +201,7 @@ class InputStatement:
         return "InputStatement"
 
     def __repr__(self):
-        return f"InputStatement(prompt={self.prompts})"
+        return f"InputStatement(prompt={self.prompt})"
 
 
 class FunctionStatement:
@@ -262,3 +262,40 @@ class ReturnStatement:
 
     def __repr__(self):
         return f"ReturnStatement(value={self.value})"
+
+
+class ForStatement:
+    def __init__(
+        self, iterator, rng, body, line=None, lineEnd=None, col=None, colEnd=None
+    ):
+        self.iterator = iterator
+        self.range = rng
+        self.body = body
+        self.line = line
+        self.lineEnd = lineEnd
+        self.col = col
+        self.colEnd = colEnd
+
+    def node_type(self):
+        return "ForStatement"
+
+    def __repr__(self):
+        return f"ForStatement(iterator={self.iterator}, range={self.range}, body={
+            self.body
+        })"
+
+
+class GetItem:
+    def __init__(self, name, index, line=None, lineEnd=None, col=None, colEnd=None):
+        self.name = name
+        self.index = index
+        self.line = line
+        self.lineEnd = lineEnd
+        self.col = col
+        self.colEnd = colEnd
+
+    def node_type(self):
+        return "GetItem"
+
+    def __repr__(self):
+        return f"GetItem(name={self.name}, index={self.index})"

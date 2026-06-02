@@ -28,10 +28,13 @@ class Lexer:
         "input": TokenType.KEYWORD,
         "func": TokenType.KEYWORD,
         "return": TokenType.KEYWORD,
+        "for": TokenType.KEYWORD,
+        "in": TokenType.KEYWORD,
         "int": TokenType.DATA_TYPE,
         "float": TokenType.DATA_TYPE,
         "string": TokenType.DATA_TYPE,
         "bool": TokenType.DATA_TYPE,
+        "array": TokenType.DATA_TYPE,
     }
     DOUBLE_CHAR_COMBINATIONS = {
         "==": TokenType.EQUALS,

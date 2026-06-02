@@ -3,7 +3,19 @@
 
 import sys
 
-from AST import BinOp, FunctionStatement, Literal, UnaryOp
+from AST import (
+    BinOp,
+    ForStatement,
+    FunctionCall,
+    FunctionStatement,
+    GetItem,
+    IfStatement,
+    LetStatement,
+    Literal,
+    ReturnStatement,
+    UnaryOp,
+    VariableReassignment,
+)
 from Error import ErrorIDs, ErrorInfo, ErrorType, error, error_exit
 
 
@@ -13,7 +25,13 @@ class BreakInterrupt(Exception): ...
 class ContinueInterrupt(Exception): ...
 
 
-python_to_dust_type_map = {str: "string", int: "int", float: "float", bool: "bool"}
+python_to_dust_type_map = {
+    str: "string",
+    int: "int",
+    float: "float",
+    bool: "bool",
+    list: "array",
+}
 
 
 def _exit(error_info, code=1):
@@ -81,17 +99,186 @@ class Function:
         return f"Function(params={self.params}, body={self.body})"
 
 
+class WrapperFunction:
+    def __init__(
+        self,
+        wraps_to,
+        return_type=None,
+        errinfomod=None,
+    ):
+        self.wraps_to = wraps_to
+        self.return_type = return_type
+        self.errinfomod = errinfomod
+
+    def __repr__(self):
+        return f"WrapperFunction(wraps_to={repr(self.wraps_to)})"
+
+
+class WrapperFunctionWraps:
+    @staticmethod
+    def length(obj):
+        return len(obj)
+
+    @staticmethod
+    def ranges(start, stop):
+        return range(start, stop)
+
+    @staticmethod
+    def contains(arr, value):
+        return value in arr
+
+
 class Env:
     def __init__(self, errinfomod, parent=None):
-        self.symbols = (
-            {} if parent else {"RECURSION_LIMIT": Variable(1000, typ="int", const=True)}
-        )
         self.errinfomod = errinfomod
         self.parent: Env = parent
+        wrapper_functions = {}
+        self.symbols = (
+            {}
+            if parent
+            else {
+                "RECURSION_LIMIT": Variable(1000, typ="int", const=True),
+                **wrapper_functions,
+            }
+        )
+        if not parent:
+            stmt = FunctionStatement(
+                "push",
+                {"arr": "array", "value": "dynamic"},
+                [
+                    ReturnStatement(
+                        BinOp(
+                            Literal("Ident", "arr"),
+                            Literal("Array", [Literal("Ident", "value")]),
+                            "+",
+                        )
+                    )
+                ],
+            )
+            self.define("push", Function(stmt.params, stmt.body, stmt))
+            self.define(
+                "len",
+                WrapperFunction(WrapperFunctionWraps.length, "int", self.errinfomod),
+            )
+            self.define(
+                "range",
+                WrapperFunction(WrapperFunctionWraps.ranges, "array", self.errinfomod),
+            )
+            self.define(
+                "contains",
+                WrapperFunction(WrapperFunctionWraps.contains, "bool", self.errinfomod),
+            )
+            stmt = FunctionStatement(
+                "remove",
+                {"arr": "array", "value": "int"},
+                [
+                    LetStatement("new_arr", Literal("Array", [])),
+                    LetStatement("index", Literal("Int", 0)),
+                    ForStatement(
+                        "item",
+                        Literal("Ident", "arr"),
+                        [
+                            IfStatement(
+                                BinOp(
+                                    Literal("Ident", "index"),
+                                    Literal("Ident", "value"),
+                                    "!=",
+                                ),
+                                [
+                                    VariableReassignment(
+                                        "new_arr",
+                                        FunctionCall(
+                                            "push",
+                                            [
+                                                Literal("Ident", "new_arr"),
+                                                Literal("Ident", "item"),
+                                            ],
+                                        ),
+                                    ),
+                                ],
+                                [],
+                            ),
+                            VariableReassignment(
+                                "index",
+                                BinOp(
+                                    Literal("Ident", "index"), Literal("Int", 1), "+"
+                                ),
+                            ),
+                        ],
+                    ),
+                    ReturnStatement(
+                        Literal("Ident", "new_arr"),
+                    ),
+                ],
+            )
+            self.define("remove", Function(stmt.params, stmt.body, stmt))
+            stmt = FunctionStatement(
+                "insert",
+                {"arr": "array", "value": "int", "val": "dynamic"},
+                [
+                    LetStatement("new_arr", Literal("Array", [])),
+                    LetStatement("index", Literal("Int", 0)),
+                    ForStatement(
+                        "item",
+                        Literal("Ident", "arr"),
+                        [
+                            IfStatement(
+                                BinOp(
+                                    Literal("Ident", "index"),
+                                    Literal("Ident", "value"),
+                                    "!=",
+                                ),
+                                [
+                                    VariableReassignment(
+                                        "new_arr",
+                                        FunctionCall(
+                                            "push",
+                                            [
+                                                Literal("Ident", "new_arr"),
+                                                Literal("Ident", "item"),
+                                            ],
+                                        ),
+                                    ),
+                                ],
+                                [
+                                    VariableReassignment(
+                                        "new_arr",
+                                        FunctionCall(
+                                            "push",
+                                            [
+                                                Literal("Ident", "new_arr"),
+                                                Literal("Ident", "val"),
+                                            ],
+                                        ),
+                                    ),
+                                    VariableReassignment(
+                                        "new_arr",
+                                        FunctionCall(
+                                            "push",
+                                            [
+                                                Literal("Ident", "new_arr"),
+                                                Literal("Ident", "item"),
+                                            ],
+                                        ),
+                                    ),
+                                ],
+                            ),
+                            VariableReassignment(
+                                "index",
+                                BinOp(
+                                    Literal("Ident", "index"), Literal("Int", 1), "+"
+                                ),
+                            ),
+                        ],
+                    ),
+                    ReturnStatement(
+                        Literal("Ident", "new_arr"),
+                    ),
+                ],
+            )
+            self.define("insert", Function(stmt.params, stmt.body, stmt))
 
     def define(self, name, value, redefining=False):
-        if redefining and name == "RECURSION_LIMIT":
-            sys.setrecursionlimit(value.value * 25)
         if redefining:
             if self.parent and self.parent.lookup(
                 name, auto_resolve=False, error_on_fail_lookup=False
@@ -157,6 +344,8 @@ class Env:
         else:
             if not auto_resolve:
                 return self.symbols[name]
+            if not hasattr(self.symbols[name], "value"):
+                return self.symbols[name]
             return self.symbols[name].value
 
     def __repr__(self):
@@ -177,6 +366,9 @@ class Interpreter:
             "InputStatement": self.handle_input_statement,
             "FunctionCall": self.handle_function_call,
         }
+        self.FUNCTION_HANDLERS = {
+            "pop": self.handle_pop_statement
+        }
         self.pos = -1
         self.cn = None
         self.adv()
@@ -186,11 +378,12 @@ class Interpreter:
         self.cn = None if self.pos >= len(self.ast) else self.ast[self.pos]
 
     def resolve_literal(self, value: Literal):
-        return (
-            value.value
-            if value.type != "Ident"
-            else self.env.lookup(value.value, auto_resolve=True, node=value)
-        )
+        if value.type == "Array":
+            return [self.handle_expression(x) for x in value.value]
+        elif value.type == "Ident":
+            return self.env.lookup(value.value, auto_resolve=True, node=value)
+        else:
+            return value.value
 
     def resolve_truthiness(self, value, line=None, lineEnd=None, col=None, colEnd=None):
         if not isinstance(value, bool):
@@ -241,6 +434,12 @@ class Interpreter:
                     else self.handle_type_cast(rhs, expr.op[10:], expr)
                 )
             )
+        elif expr.node_type() == "GetItem":
+            arr = self.env.lookup(expr.name, auto_resolve=True, node=expr)
+            index = self.handle_expression(expr.index)
+            if index > len(arr):
+                pass  # TODO: IndexError
+            return arr[index]
         elif expr.node_type() in self.EXPR_NODE_TYPES:
             return self.EXPR_NODE_TYPES[expr.node_type()](expr)
         lhs = self.handle_expression(expr.lhs)
@@ -329,10 +528,17 @@ class Interpreter:
         print(" ".join(values))
 
     def handle_let_statement(self, node):
+        value = self.handle_expression(node.value)
+        if isinstance(value, (Function, WrapperFunction)):
+            self.env.define(
+                node.name,
+                value,
+            )
+            return
         self.env.define(
             node.name,
             Variable(
-                self.handle_expression(node.value),
+                value,
                 typ=node.type,
                 const=node.const,
                 node=node,
@@ -341,18 +547,24 @@ class Interpreter:
         )
 
     def handle_reassignment(self, node):
-        self.env.define(
-            node.name,
-            Variable(
-                self.handle_expression(node.value),
-                typ=self.env.lookup(
-                    node.name, auto_resolve=False, node=node.value
-                ).type,
-                node=node,
-                errinfomod=self.errinfomod,
-            ),
-            redefining=True,
-        )
+        if isinstance(node.name, GetItem):
+            arr = self.env.lookup(node.name.name, node=node)
+            index = self.handle_expression(node.name.index)
+            arr[index] = self.handle_expression(node.value)
+            self.env.define(node.name.name, Variable(arr), redefining=True)
+        else:
+            self.env.define(
+                node.name,
+                Variable(
+                    self.handle_expression(node.value),
+                    typ=self.env.lookup(
+                        node.name, auto_resolve=False, node=node.value
+                    ).type,
+                    node=node,
+                    errinfomod=self.errinfomod,
+                ),
+                redefining=True,
+            )
 
     def handle_if_statement(self, node):
         condition = self.handle_expression(node.condition)
@@ -429,7 +641,12 @@ class Interpreter:
         )
 
     def handle_function_call(self, node):
+        if node.name in self.FUNCTION_HANDLERS:
+            return self.FUNCTION_HANDLERS[node.name](node)
         func = self.env.lookup(node.name, node=node, auto_resolve=False)
+        if isinstance(func, WrapperFunction):
+            arguments = [self.handle_expression(value) for value in node.args]
+            return func.wraps_to(*arguments)
         if not isinstance(func, Function):
             _error(
                 self.errinfomod,
@@ -443,8 +660,7 @@ class Interpreter:
             resolved = self.handle_expression(node.args[i])
             arguments[v] = resolved
         env = Env(self.errinfomod, self.env)
-        idx = 0
-        for i, v in arguments.items():
+        for idx, (i, v) in enumerate(arguments.items()):
             env.define(
                 i,
                 Variable(
@@ -455,12 +671,43 @@ class Interpreter:
                     errinfomod=self.errinfomod,
                 ),
             )
-            idx += 1
         result = Interpreter(
             func.body, self.filename, self.errinfomod, env=env
         ).interpret()
         if result is not None:
             return result
+
+    def handle_for_statement(self, node: ForStatement):
+        rng = self.handle_expression(node.range)
+        for i in rng:
+            scope = Env(self.errinfomod, self.env)
+            scope.define(node.iterator, i)
+            interp = Interpreter(
+                node.body,
+                self.filename,
+                self.errinfomod,
+                env=scope,
+                loop=True,
+            )
+            try:
+                result = interp.interpret()
+            except BreakInterrupt:
+                break
+            except ContinueInterrupt:
+                continue
+            if result is not None:
+                return result
+
+    def handle_pop_statement(self, node: FunctionCall):
+        # never thought i'd be making a separate
+        # method for a function that should be
+        # defined in Env() if it wasn't for my
+        # decision to make func params immutable
+        arr = self.handle_expression(node.args[0])
+        val = arr.pop()
+        if isinstance(node.args[0], Literal) and node.args[0].type == "Ident":
+            self.env.define(node.args[0].value, arr, redefining=True)
+        return val
 
     def parse_node(self, node):
         global stack_frame
@@ -489,12 +736,14 @@ class Interpreter:
                 self.handle_function_statement(node)
             case "FunctionCall":
                 stack_frame += 1
-                res = self.handle_function_call(node)
+                self.handle_function_call(node)
                 stack_frame -= 1
-                if res is not None:
-                    return res
             case "ReturnStatement":
                 return self.handle_expression(node.value)
+            case "ForStatement":
+                res = self.handle_for_statement(node)
+                if res is not None:
+                    return res
 
     def interpret(self):
         if stack_frame >= self.env.lookup("RECURSION_LIMIT"):

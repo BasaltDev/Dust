@@ -66,3 +66,38 @@ func sum(a, b) {
 }
 let g = sum(10, 20);
 print(g);
+
+// Array & For Loop test
+let arr = [10, 20, 30];
+print(arr);
+func array_mutation(arr: array) {
+    let new_arr = arr;
+    let sum = 0;
+    for i in new_arr {
+        sum += i;
+    }
+    new_arr = push(new_arr, sum);
+    return new_arr;
+}
+arr = push(arr, 10);
+print(arr);
+arr = remove(arr, 0);
+print(arr);
+arr = remove(arr, 2);
+print(arr);
+arr = array_mutation(arr);
+print(arr);
+print(arr[0]);
+arr[0] += 5;
+print(arr);
+arr[1] = 50;
+print(arr);
+arr[1] \= 5;
+print(arr);
+arr = array_mutation(arr);
+arr = array_mutation(arr);
+arr = array_mutation(arr);
+print(arr);
+for i in range(0, len(arr)) {
+    print(<string>i + ":", arr[i]);
+}

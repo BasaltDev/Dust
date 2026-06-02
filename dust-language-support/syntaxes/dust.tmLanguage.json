@@ -45,7 +45,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.dust",
-					"match": "\\b(if|else|while|for|func|return)\\b"
+					"match": "\\b(if|else|while|for|in|func|return|break|continue)\\b"
 				},
 				{
 					"name": "storage.type.dust",
@@ -88,14 +88,14 @@
 			"patterns": [
 				{
 					"name": "support.type.dust",
-					"match": "\\b(int|string|bool|float)\\b"
+					"match": "\\b(int|string|bool|float|array)\\b"
 				}
 			]
 		},
 		"casts": {
 			"patterns": [
 				{
-					"match": "(<)(int|string|bool|float)(>)",
+					"match": "(<)(int|string|bool|float|array)(>)",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.tag.dust"
@@ -114,7 +114,7 @@
 			"patterns": [
 				{
 					"name": "keyword.operator.dust",
-					"match": "==|!=|<=|>=|\\+=|-=|&&|\\|\\||[\\+\\-\\*\\/=%<>!]"
+					"match": "==|!=|<=|>=|\\+=|-=|&&|\\|\\||\\\\=|[\\+\\-\\*\\/=%<>!\\\\]"
 				}
 			]
 		}

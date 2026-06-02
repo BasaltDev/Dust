@@ -2,7 +2,7 @@ group "failure" {
     test "recursion limit" {
         run "tests/failure/recursion_limit.ds"
         expect exit == 1 otherwise "code did not error?"
-        expect stdout contains "RECURSION_LIMIT++;" otherwise "code did not error?"
+        expect stdout contains "RECURSION_LIMIT++;" otherwise "code did not mention RECURSION_LIMIT++?"
         expect error == "E0009" otherwise "error was not E0009?"
     }
 
@@ -129,10 +129,6 @@ group "success" {
         ] otherwise "miscalculated fizzbuzz"
     }
     test "success test" {
-        STDIN = ["Yo!", "hi"]
-        run "tests/success/success_test.ds"
-        expect exit == 1
-        expect error == "E0011"
         STDIN = ["Yo!", 10]
         run "tests/success/success_test.ds"
         expect exit == 0

@@ -5,12 +5,19 @@ import sys
 
 from AST import (
     BinOp,
+    GetItem,
     Literal,
     UnaryOp,
 )
 from Error import ErrorIDs, ErrorInfo, ErrorType, error, error_exit
 
-python_to_dust_type_map = {str: "string", int: "int", float: "float", bool: "bool"}
+python_to_dust_type_map = {
+    str: "string",
+    int: "int",
+    float: "float",
+    bool: "bool",
+    list: "array",
+}
 
 
 def _exit(error_info, code=1):
@@ -30,7 +37,41 @@ errored = False
 class Env:
     def __init__(self, errinfomod, parent=None):
         self.symbols = (
-            {} if parent else {"RECURSION_LIMIT": {"type": "var", "const": True}}
+            {}
+            if parent
+            else {
+                "RECURSION_LIMIT": {"type": "var", "const": True},
+                "push": {
+                    "type": "function",
+                    "const": True,
+                    "params": {"arr": "array", "value": "dynamic"},
+                },
+                "len": {
+                    "type": "function",
+                    "const": True,
+                    "params": {"value": "dynamic"},
+                },
+                "range": {
+                    "type": "function",
+                    "const": True,
+                    "params": {"start": "dynamic", "end": "dynamic"},
+                },
+                "remove": {
+                    "type": "function",
+                    "const": True,
+                    "params": {"arr": "array", "index": "int"},
+                },
+                "insert": {
+                    "type": "function",
+                    "const": True,
+                    "params": {"arr": "array", "index": "int", "value": "dynamic"}
+                },
+                "pop": {
+                    "type": "function",
+                    "const": True,
+                    "params": {"arr": "array"}
+                }
+            }
         )
         self.errinfomod = errinfomod
         self.parent = parent
@@ -90,22 +131,40 @@ class Analyzer:
         self.cn = None if self.pos >= len(self.ast) else self.ast[self.pos]
 
     def resolve_literal(self, value: Literal):
-        return (
-            value.value
-            if value.type != "Ident"
-            else self.env.lookup(value.value, node=value)
-        )
+        if value.type == "Array":
+            return [self.handle_expression(x) for x in value.value]
+        elif value.type == "Ident":
+            return self.env.lookup(value.value, node=value)
+        else:
+            return value.value
 
     def handle_expression(self, expr: BinOp | UnaryOp | Literal):
         global errored
         if isinstance(expr, Literal):
-            self.resolve_literal(expr)
-            return
+            return self.resolve_literal(expr)
         elif isinstance(expr, UnaryOp):
-            self.handle_expression(expr.rhs)
-            return
+            return self.handle_expression(expr.rhs)
+        elif expr.node_type() in [
+            "InputStatement",
+            "FunctionCall",
+        ]:
+            return "ok"
         if not isinstance(expr, (BinOp, UnaryOp, Literal)):
             return
+        erroredrn = False
+        if isinstance(self.handle_expression(expr.lhs), list):
+            if not isinstance(self.handle_expression(expr.rhs), list):
+                _error(
+                    self.errinfomod,
+                    ErrorType.OperatorTypeMismatch,
+                    ErrorIDs.OperatorTypeMismatch,
+                    f"{expr.line}-{expr.lineEnd}:{expr.col}-{expr.colEnd}",
+                    expr.op,
+                    python_to_dust_type_map[type(self.handle_expression(expr.lhs))],
+                    python_to_dust_type_map[type(self.handle_expression(expr.rhs))],
+                )
+                errored = True
+                erroredrn = True
         if expr.op in "\\/%":
             if isinstance(expr.rhs, Literal) and expr.rhs.value == 0:
                 _error(
@@ -116,12 +175,16 @@ class Analyzer:
                     True,
                 )
                 errored = True
+                erroredrn = True
+        return not erroredrn
 
     def resolve_truthiness(self, node):
         global errored
-        if isinstance(node.condition, Literal) and not isinstance(
-            node.condition.value, bool
-        ) and not node.condition.type == "Ident":
+        if (
+            isinstance(node.condition, Literal)
+            and not isinstance(node.condition.value, bool)
+            and not node.condition.type == "Ident"
+        ):
             _error(
                 self.errinfomod,
                 ErrorType.ConditionalTypeMismatch,
@@ -140,8 +203,23 @@ class Analyzer:
                     for i in self.cn.values:
                         self.handle_expression(i)
                 case "LetStatement":
-                    self.env.define(self.cn.name, "var", const=self.cn.const)
+                    value = self.handle_expression(self.cn.value)
+                    if isinstance(value, dict) and value.get("data_type") is not None:
+                        typ = value.get("data_type")
+                    elif not isinstance(value, dict):
+                        typ = python_to_dust_type_map[type(value)]
+                    self.env.define(
+                        self.cn.name,
+                        "var",
+                        const=self.cn.const,
+                        data_type=typ,
+                        inferred=self.cn.type == "dynamic",
+                    )
                 case "VariableReassignment":
+                    if isinstance(self.cn.name, GetItem):
+                        self.env.lookup(self.cn.name.name, self.cn.name)
+                        self.adv()
+                        continue
                     value = self.env.lookup(self.cn.name, self.cn)
                     if not isinstance(value, dict):
                         print("An internal error within the Dust interpreter happened.")
@@ -156,6 +234,7 @@ class Analyzer:
                             self.cn.name,
                         )
                         errored = True
+                    typ = value.get("type")
                     self.env.define(self.cn.name, "var")
                 case "IfStatement":
                     self.resolve_truthiness(self.cn)
@@ -214,8 +293,10 @@ class Analyzer:
                         params=self.cn.params,
                     )
                     env = Env(self.errinfomod, parent=self.env)
-                    for i in self.cn.params:
-                        env.define(i, "var", const=True)
+                    for i, v in self.cn.params.items():
+                        env.define(
+                            i, "var", const=True, data_type=v, inferred=v == "dynamic"
+                        )
                     Analyzer(
                         self.cn.body,
                         self.filename,
@@ -225,6 +306,9 @@ class Analyzer:
                     ).analyze()
                 case "FunctionCall":
                     func = self.env.lookup(self.cn.name, self.cn)
+                    if not func:
+                        self.adv()
+                        continue
                     erroredrn = False
                     if func["type"] != "function" and not self.function:
                         _error(
@@ -251,7 +335,7 @@ class Analyzer:
                             )
                             errored = True
                     for arg in self.cn.args:
-                        self.handle_expression(arg)
+                        arg = self.handle_expression(arg)
                 case "ReturnStatement":
                     if not self.function:
                         _error(
@@ -263,6 +347,24 @@ class Analyzer:
                             "function",
                         )
                         errored = True
+                case "ForStatement":
+                    self.handle_expression(self.cn.range)
+                    env = Env(self.errinfomod, self.env)
+                    env.define(
+                        self.cn.iterator,
+                        "var",
+                        True,
+                        data_type="dynamic",
+                        inferred=False,
+                    )
+                    Analyzer(
+                        self.cn.body,
+                        self.filename,
+                        self.errinfomod,
+                        env,
+                        loop=True,
+                        function=self.function,
+                    ).analyze()
             self.adv()
         if errored:
             _exit(self.errinfomod, 1)

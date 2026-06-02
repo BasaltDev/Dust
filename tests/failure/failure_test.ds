@@ -6,7 +6,7 @@ print((1 + 2 * 3 / 5) == 2.2 || 1 == 2, variable);
 print(variable / a);
 print(a);
 print("hi" + 10);
-if (1 + 3 - 5 * 2 / 5 % 7) {
+if 1 + 3 - 5 * 2 / 5 % 7 {
     print("yo");
     let a = 20;
     a = 30;
