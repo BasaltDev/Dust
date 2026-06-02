@@ -31,6 +31,7 @@ python_to_dust_type_map = {
     float: "float",
     bool: "bool",
     list: "array",
+    range: "array",
 }
 
 

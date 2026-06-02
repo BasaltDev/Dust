@@ -160,7 +160,83 @@ print(sum(10, 20));
 ```
 If you try to call something that isn't a function, for example, a variable, it will throw an error. User-defined functions can return a value using the `return` keyword.
 
-And that's everything you need to know to begin programming in Dust for now!
+### Arrays
+Arrays are basically lists of items. Unlike other languages, you cannot type-annotate an array variable with something like array\[type] (for now). Defining an array looks something like this:
+```rust
+let arr: array = [10, 20, 30,...];
+```
+To access an element of an array, you do this:
+```rust
+arr[index]
+```
+You can reassign the value at a certain index too, for example:
+```rust
+arr[index] = 1;
+```
+There are a few other operations you can perform on them as well, listed in the Arrays section of Standard Library Functions (below).
+
+### Standard Library Functions
+
+<a name="stdlib-funcs-arrays"></a>
+#### Arrays:
+### ⚠️ WARNING: array functions do NOT perform in-place mutation.
+* `push`: Adds an element to an array.<br>
+    `push` takes 2 arguments: arr (the array) and value (the value you want to push).<br>
+    For example:
+    ```rust
+    let arr = [10, 20, 30];
+    arr = push(arr, 40);
+    ```
+    It's a little similar to Go, however Go has `append`.
+* `remove`: Removes an element at a certain index from an array. For example:
+    ```rust
+    let arr = [10, 20, 30];
+    arr = remove(arr, 2);
+    ```
+    Remember, Dust (and most programming languages) have zero-based indexing.
+* `insert`: Inserts an element at a certain index in an array.<br>
+`insert` takes 3 arguments: arr (the array), index (the index where you want to insert the value) and value (the value you want to insert).<br>
+For example:
+    ```rust
+    let arr = [10, 20, 30];
+    arr = insert(arr, 2, 25);
+    ```
+    Remember zero-indexing.
+* `contains`: Checks if an array contains a certain value.<br>
+` contains` takes 1 argument, and that is arr (the array to check). It returns a `bool` value.<br>
+For example:
+    ```rust
+    let arr = [10, 20, 30];
+    print(contains(arr, 25));
+    ```
+* `pop`: Gets the last element of an array, stores it and removes it.<br>
+`pop` takes 1 argument, and that is arr (the array to pop from). `pop` is the only function of these that performs an in-place mutation.<br>
+For example:
+    ```rust
+    let arr = [10, 20, 30];
+    print(pop(arr));
+    ```
+
+#### Other Functions
+* `range`: Creates a lazy iterator (basically a list that doesn't load until you actually iterate over it).<br>
+`range` takes 2 arguments: start (the start of the range) and end (the end of the range).<br>
+For example:
+    ```rust
+    let a = range(10, 15);
+    print(a[3]); // will print `14` because 14 is the 4th item in the iterator
+    ```
+    `range` is NOT inclusive.
+
+<br>
+
+### For Loops
+For loops are an easy way to iterate over a list or an iterator. You use them like this:
+```rust
+for i in iterator {
+    // do something
+}
+```
+In each iteration, `i` contains the current value in the iteration. `i` is a constant variable which cannot be modified.
 
 <a name="how-to-run"></a>
 ## How to Run

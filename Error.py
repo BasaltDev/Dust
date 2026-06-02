@@ -245,18 +245,8 @@ def error(
     *args,
     show_code=True,
 ):
-    if error_info.json:
-        error_info.error_table.append(
-            {
-                "id": error_id,
-                "name": getattr(ErrorIDNames, error_id),
-                "representation": error_type(*args)
-                if isinstance(error_type(*args), str)
-                else error_type(*args)[0],
-            }
-        )
-        return
     errmsg = error_type(*args)
+    help_msg = None if len(errmsg) < 2 else errmsg[1]
     plines = position_info.split(":")[0]
     if len(plines.split("-")) > 1 and int(plines.split("-")[0]) == int(
         plines.split("-")[1]
@@ -266,11 +256,6 @@ def error(
     displaycols = cols
     if int(cols.split("-")[1]) - 1 == int(cols.split("-")[0]):
         displaycols = cols.split("-")[0]
-    print(
-        f"{Fore.GREEN}{error_info.filename}{Fore.RESET}:{Fore.YELLOW}{plines}\
-{Fore.RESET}:{Fore.RED}{displaycols} {Fore.LIGHTRED_EX} Error[{error_id}]: {Fore.RESET}\
-{errmsg[0] if isinstance(errmsg, tuple) else errmsg}"
-    )
     if not show_code:
         error_info.error_table.append({"id": error_id})
         return
@@ -286,6 +271,27 @@ def error(
     cols = splitted[1].split("-")
     col = int(cols[0])
     colEnd = int(cols[1])
+    if error_info.json:
+        error_info.error_table.append(
+            {
+                "id": error_id,
+                "name": getattr(ErrorIDNames, error_id),
+                "representation": error_type(*args)
+                if isinstance(error_type(*args), str)
+                else error_type(*args)[0],
+                "line_start": line,
+                "line_end": lineEnd,
+                "column_start": col,
+                "column_end": colEnd,
+                "help": help_msg,
+            }
+        )
+        return
+    print(
+        f"{Fore.GREEN}{error_info.filename}{Fore.RESET}:{Fore.YELLOW}{plines}\
+{Fore.RESET}:{Fore.RED}{displaycols} {Fore.LIGHTRED_EX} Error[{error_id}]: {Fore.RESET}\
+{errmsg[0] if isinstance(errmsg, tuple) else errmsg}"
+    )
     ln = error_info.source_lines[line - 1]
     if line != lineEnd:
         for lin in range(line, lineEnd + 1):
@@ -331,11 +337,19 @@ def error(
             "representation": error_type(*args)
             if isinstance(error_type(*args), str)
             else error_type(*args)[0],
+            "line_start": line,
+            "line_end": lineEnd,
+            "column_start": col,
+            "column_end": colEnd,
+            "help": help_msg,
         }
     )
 
 
 def error_exit(errinfomod: ErrorInfo):
+    if errinfomod.json:
+        print(errinfomod.error_table)
+        exit(1)
     if errinfomod.error_table:
         print(
             "If you need additional help to debug your program, you can use the "
