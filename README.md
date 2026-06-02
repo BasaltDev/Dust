@@ -188,7 +188,8 @@ There are a few other operations you can perform on them as well, listed in the 
     arr = push(arr, 40);
     ```
     It's a little similar to Go, however Go has `append`.
-* `remove`: Removes an element at a certain index from an array. For example:
+* `remove`: Removes an element at a certain index from an array.<br>
+`remove` takes two arguments: arr (the array to remove from) and index (the index of the item to remove).<br>For example:
     ```rust
     let arr = [10, 20, 30];
     arr = remove(arr, 2);
