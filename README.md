@@ -253,7 +253,7 @@ You can run dust using the following command:
 ```Powershell
 python dust.py
 ```
-You can figure out the rest from tehre.
+You can figure out the rest from there.
 
 <a name="license"></a>
 ## License
