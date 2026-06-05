@@ -61,8 +61,8 @@ let f = <int>input("hi, enter a number please: ") + 20;
 print(f + 20);
 
 // Function test
-func sum(a, b) {
-    return a + b;
+func sum(h, i) {
+    return h + i;
 }
 let g = sum(10, 20);
 print(g);
@@ -101,3 +101,33 @@ print(arr);
 for i in range(0, len(arr)) {
     print(<string>i + ":", arr[i]);
 }
+
+struct Person {
+    name: string;
+    age: int;
+    gender: string;
+}
+
+implement for Person {
+    func status(self) {
+        self.age += 10;
+        return "Name: " + self.name + "\nAge: " + <string>self.age + "\nGender: " + self.gender;
+    }
+}
+
+let person = Person {
+    name: "Perr Sonn", /* quite the person indeed */
+    age: 463, /* what an age! */
+    gender: "gender" /* wow, that's quite a cool gender! */
+};
+
+print(person.name, "is", <string>person.age, "years old!");
+if person.age > 120 {
+    print("Damn,", person.name, "sure is old!");
+}
+print(person.name, "is of the '" + person.gender + "' gender");
+if person.gender != "male" && person.gender != "female" {
+    print("Is", person.name, "genderless or something?");
+}
+
+print(person.status());

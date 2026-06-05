@@ -1,0 +1,25 @@
+struct Vector {
+    x: int;
+    y: int;
+}
+
+implement for Vector {
+    func magnitude(self) {
+        let x_mag = self.x * self.x;
+        let y_mag = self.y * self.y;
+        return x_mag + y_mag;
+    }
+    
+    func scale(self, factor: int) {
+        self.x *= factor;
+        self.y *= factor;
+    }
+}
+
+let v = Vector { x: 3, y: 4 };
+print("Vector: x:", v.x, "y:" v.y);
+print("Vector magnitude:", v.magnitude());
+
+v.scale(2);
+print("Vector scaled: x:", v.x, "y:", v.y);
+print("New magnitude:", v.magnitude());

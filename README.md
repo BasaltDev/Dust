@@ -109,7 +109,7 @@ find if statement -> check truth of condition
 ```
 
 ### While Statements/Loops
-Currently, `while` is the only loop in Dust. It works similarly to the if statement:
+The `while` loop works similarly to the if statement:
 ```Rust
 while condition {
     // do something
@@ -238,6 +238,42 @@ for i in iterator {
 }
 ```
 In each iteration, `i` contains the current value in the iteration. `i` is a constant variable which cannot be modified.
+
+### Structs
+Structs are Dust's way to do Object-Oriented Programming (OOP). Structs are very similar to structs in languages like Rust, where you have a main struct definition with fields and an implement block where you define methods of a struct.
+
+You define a struct like this:
+```rust
+struct Point {
+    x: int;
+    y: int;
+}
+```
+It follows a simple pattern: define the name, name the parameters and the types. They're essentially containers for values.<br>
+To access a struct's field/method, you use dot notation:
+```Rust
+print(Point.x);
+```
+To initialize a struct, you use the following syntax:
+```rust
+let my_point = Point { x: 0, y: 0 };
+```
+where Point is the struct name and x and y are the fields being initialized.<br>
+
+To make struct methods, you make an implement block:
+```Swift
+implement for Point {
+    func is_origin(self) {
+        return self.x == 0 && self.y == 0;
+    }
+}
+```
+The self parameter is optional, however it provides access to the struct's fields and methods (which is useful sometimes). It is only required when you want to call another method of the struct.<br>
+
+And of course, to access a struct method, you'd use dot notation and call it like any ordinary function:
+```rust
+print(point.is_origin());
+```
 
 <a name="how-to-run"></a>
 ## How to Run

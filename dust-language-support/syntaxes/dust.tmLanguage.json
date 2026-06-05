@@ -45,11 +45,11 @@
 			"patterns": [
 				{
 					"name": "keyword.control.dust",
-					"match": "\\b(if|else|while|for|in|func|return|break|continue)\\b"
+					"match": "\\b(if|else|while|for|in|func|return|break|continue|implement)\\b"
 				},
 				{
 					"name": "storage.type.dust",
-					"match": "\\b(let|const)\\b"
+					"match": "\\b(let|const|struct)\\b"
 				}
 			]
 		},
@@ -114,7 +114,7 @@
 			"patterns": [
 				{
 					"name": "keyword.operator.dust",
-					"match": "==|!=|<=|>=|\\+=|-=|&&|\\|\\||\\\\=|[\\+\\-\\*\\/=%<>!\\\\]"
+					"match": "\\+=|-=|==|!=|<=|>=|&&|\\|\\||\\\\=|\\+|\\-|\\*|\\/|%|<|>|!|\\\\"
 				}
 			]
 		}

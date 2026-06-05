@@ -23,6 +23,7 @@ from Parser import Parser
 LEXER_DEBUG = False
 EXECUTE_PARSER = True
 PARSER_DEBUG = False
+ANALYZE = True
 INTERPRET = True
 
 psr = ArgumentParser(description="The Dust programming language")
@@ -84,10 +85,12 @@ def interpret(file):
         print("=========== AST ===========")
         print("\n".join(str(node) for node in ast))
         print("===========================")
-    if not INTERPRET:
+    if not ANALYZE:
         sys.exit()
     analyzer = Analyzer(ast, file, errinfo)
     analyzer.analyze()
+    if not INTERPRET:
+        sys.exit()
     start_time = time.perf_counter()
     try:
         interpreter = Interpreter(ast, file, errinfo)
@@ -146,9 +149,9 @@ if __name__ == "__main__":
             else:
                 found = True
                 print(
-                    f"{Style.DIM}{'╭' if cnt < 1 else '┠'}{
+                    f"{Style.DIM}{'╭' if cnt < 1 else '├'}{
                         f'{Style.RESET_ALL}`{val}` EXPLANATION{Style.DIM}':─^131}{
-                        '╮' if cnt < 1 else '┨'
+                        '╮' if cnt < 1 else '┤'
                     }{Style.RESET_ALL}"
                 )
                 for i in value.split("\n"):

@@ -7,3 +7,4 @@ tests/other/
 *.bat
 node_modules/
 *.json
+old/

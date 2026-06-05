@@ -7,16 +7,20 @@ from AST import (
     BinOp,
     BreakStatement,
     ContinueStatement,
+    DotAccess,
     ForStatement,
     FunctionCall,
     FunctionStatement,
     GetItem,
     IfStatement,
+    Implementation,
     InputStatement,
     LetStatement,
     Literal,
     PrintStatement,
     ReturnStatement,
+    StructInit,
+    StructStatement,
     UnaryOp,
     VariableReassignment,
     WhileStatement,
@@ -51,6 +55,8 @@ class Parser:
             "func": self.parse_function,
             "return": self.parse_return_statement,
             "for": self.parse_for_statement,
+            "struct": self.parse_struct_statement,
+            "implement": self.parse_implementation,
         }
         self.EXPR_KEYWORDS = {"input": lambda: self.parse_input_statement(expr=True)}
         self.adv()
@@ -150,6 +156,38 @@ class Parser:
                 operands.append(value)
                 last_item = value
             elif (
+                self.ct == TokenType.IDENTIFIER
+                and self.peek() == TokenType.LEFTBRACE
+                and self.peek() not in (ending, altEnding)
+            ):
+                line = self.ct.line
+                col = self.ct.col
+                name = self.ct.value
+                fields = {}
+                self.adv()
+                while self.ct and self.ct != TokenType.RIGHTBRACE:
+                    self.adv()
+                    if not self.expect_token(TokenType.IDENTIFIER):
+                        return
+                    fname = self.ct.value
+                    self.adv()
+                    if not self.expect_token(TokenType.COLON):
+                        return
+                    self.adv()
+                    value = self.parse_expression(
+                        ending=TokenType.RIGHTBRACE, altEnding=TokenType.COMMA
+                    )
+                    fields[fname] = value
+                    if self.ct == TokenType.RIGHTBRACE:
+                        break
+                    if not self.expect_token(TokenType.COMMA):
+                        return
+                lineEnd = self.ct.line
+                colEnd = self.ct.colEnd
+                value = StructInit(name, fields, line, lineEnd, col, colEnd)
+                operands.append(value)
+                last_item = value
+            elif (
                 self.ct == TokenType.KEYWORD
                 and self.ct.value in self.EXPR_KEYWORDS
                 and self.peek() == TokenType.LEFTPAREN
@@ -186,17 +224,27 @@ class Parser:
                 operator_tokens.append(self.peek(-1))
                 self.adv()
             elif self.ct == TokenType.IDENTIFIER and self.peek() == TokenType.LEFTPAREN:
-                value = self.parse_function_call(expr=True)
+                value = self.parse_function_call(self.ct.value, expr=True)
+                operands.append(value)
+                last_item = value
+            elif self.ct == TokenType.IDENTIFIER and self.peek() == TokenType.PERIOD:
+                value = self.parse_dot_access(expr=True)
                 operands.append(value)
                 last_item = value
             elif (
                 self.ct == TokenType.IDENTIFIER and self.peek() == TokenType.LEFTBRACKET
             ):
+                line = self.ct.line
+                col = self.ct.col
                 name = self.ct.value
                 self.adv(2)
                 value = GetItem(
                     name, self.parse_expression(ending=TokenType.RIGHTBRACKET)
                 )
+                value.lineEnd = self.ct.line
+                value.colEnd = self.ct.colEnd
+                value.line = line
+                value.col = col
                 operands.append(value)
                 last_item = value
             elif self.ct in (
@@ -226,6 +274,7 @@ class Parser:
             self.adv()
         if self.ct not in (ending, altEnding):
             self.expect_token(altEnding if altEnding else ending)
+            print("hi")
             return
         while any(
             (i in ("--", "!") or (i.startswith("<") and i.endswith(">")))
@@ -352,16 +401,7 @@ class Parser:
         return PrintStatement(values, line, lineEnd, col, colEnd)
 
     def parse_data_type(self):
-        if self.ct == TokenType.DATA_TYPE:
-            return self.ct.value
-        error(
-            self.errinfomod,
-            ErrorType.NotAType,
-            ErrorIDs.NotAType,
-            f"{self.ct.line}:{self.ct.col}-{self.ct.colEnd}",
-            self.ct.value,
-        )
-        self.errored = True
+        return self.ct.value  # TODO: allow array annotation support
 
     def parse_let_statement(self, const=False):
         line = self.ct.line
@@ -587,10 +627,9 @@ class Parser:
             name, params, body, return_type, line, lineEnd, col, colEnd
         )
 
-    def parse_function_call(self, expr=False):
+    def parse_function_call(self, func_name, expr=False):
         line = self.ct.line
         col = self.ct.col
-        func_name = self.ct.value
         self.adv()
         if not self.expect_token(TokenType.LEFTPAREN):
             return
@@ -644,6 +683,8 @@ class Parser:
         self.adv()
         rng = self.parse_expression(ending=TokenType.LEFTBRACE)
         body = self.parse_block_statement()
+        if not self.expect_token(TokenType.RIGHTBRACE):
+            return
         lineEnd = self.ct.line
         colEnd = self.ct.colEnd
         return ForStatement(iter_name, rng, body, line, lineEnd, col, colEnd)
@@ -672,6 +713,79 @@ class Parser:
         val.col = col
         return val
 
+    def parse_struct_statement(self):
+        line = self.ct.line
+        col = self.ct.col
+        self.adv()
+        if not self.expect_token(TokenType.IDENTIFIER):
+            return
+        sname = self.ct.value
+        fields = {}
+        self.adv()
+        if not self.expect_token(TokenType.LEFTBRACE):
+            return
+        self.adv()
+        while self.ct and self.ct != TokenType.RIGHTBRACE:
+            if not self.expect_token(TokenType.IDENTIFIER):
+                return
+            fname = self.ct.value
+            typ = "dynamic"
+            self.adv()
+            if self.ct == TokenType.COLON:
+                self.adv()
+                typ = self.parse_data_type()
+                self.adv()
+            if not self.expect_token(TokenType.SEMICOLON):
+                return
+            fields[fname] = typ
+            self.adv()
+        lineEnd = self.ct.line
+        colEnd = self.ct.colEnd
+        return StructStatement(sname, fields, line, lineEnd, col, colEnd)
+
+    def parse_dot_access(self, lvalue=None, expr=False):
+        line = self.ct.line
+        col = self.ct.col
+        if not lvalue:
+            lvalue = self.ct.value
+        self.adv(2)
+        if not self.expect_token(TokenType.IDENTIFIER):
+            return
+        lineEnd = self.ct.line
+        colEnd = self.ct.colEnd
+        rvalue = self.ct.value
+        dotaccess = DotAccess(lvalue, rvalue, line, lineEnd, col, colEnd)
+        if self.peek() == TokenType.PERIOD:
+            dotaccess = self.parse_dot_access(dotaccess, expr=expr)
+        elif self.peek() == TokenType.LEFTPAREN:
+            dotaccess = self.parse_function_call(dotaccess, expr=expr)
+        elif self.peek() == TokenType.ASSIGN:
+            dotaccess = self.parse_reassignment(dotaccess)
+        elif self.peek() == TokenType.COMPOUNDASSIGNMENT:
+            dotaccess = self.parse_compound_assignment(dotaccess, self.peek().value[0])
+        return dotaccess
+
+    def parse_implementation(self):
+        line = self.ct.line
+        col = self.ct.col
+        self.adv()
+        if not self.expect_token(Token(TokenType.KEYWORD, "for")):
+            return
+        self.adv()
+        if not self.expect_token(TokenType.IDENTIFIER):
+            return
+        struct = self.ct.value
+        self.adv()
+        methods = [
+            x for x in self.parse_block_statement() if isinstance(x, FunctionStatement)
+        ]
+        for i, v in enumerate(methods):
+            if v.params.get("self"):
+                methods[i].params["self"] = struct
+        lineEnd = self.ct.line
+        colEnd = self.ct.colEnd
+        return Implementation(struct, methods, line, lineEnd, col, colEnd)
+
     def parse_statement(self):
         if self.ct == TokenType.KEYWORD:
             return self.KEYWORD_HANDLERS[self.ct.value]()
@@ -685,7 +799,9 @@ class Parser:
         ):
             return self.parse_compound_assignment(self.ct, self.peek().value)
         elif self.ct == TokenType.IDENTIFIER and self.peek() == TokenType.LEFTPAREN:
-            return self.parse_function_call()
+            return self.parse_function_call(self.ct.value)
+        elif self.ct == TokenType.IDENTIFIER and self.peek() == TokenType.PERIOD:
+            return self.parse_dot_access(self.ct.value)
         elif self.ct == TokenType.IDENTIFIER and self.peek() in (
             TokenType.INCREMENT,
             TokenType.DECREMENT,

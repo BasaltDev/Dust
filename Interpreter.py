@@ -5,6 +5,7 @@ import sys
 
 from AST import (
     BinOp,
+    DotAccess,
     ForStatement,
     FunctionCall,
     FunctionStatement,
@@ -13,6 +14,7 @@ from AST import (
     LetStatement,
     Literal,
     ReturnStatement,
+    StructInit,
     UnaryOp,
     VariableReassignment,
 )
@@ -25,16 +27,6 @@ class BreakInterrupt(Exception): ...
 class ContinueInterrupt(Exception): ...
 
 
-python_to_dust_type_map = {
-    str: "string",
-    int: "int",
-    float: "float",
-    bool: "bool",
-    list: "array",
-    range: "array",
-}
-
-
 def _exit(error_info, code=1):
     error_exit(error_info)
     sys.exit(code)
@@ -44,9 +36,14 @@ sys.setrecursionlimit(25000)
 
 
 def _error(
-    error_info: ErrorInfo, error_type, error_id: ErrorIDs, position_info: str, *args
+    error_info: ErrorInfo,
+    error_type,
+    error_id: ErrorIDs,
+    position_info: str,
+    *args,
+    **kwargs,
 ):
-    error(error_info, error_type, error_id, position_info, *args)
+    error(error_info, error_type, error_id, position_info, *args, **kwargs)
     _exit(error_info, 1)
 
 
@@ -67,7 +64,11 @@ class Variable:
         self.inferred = typ == "dynamic"
         self.value = value
         self.const = const
-        if (not self.inferred) and python_to_dust_type_map[type(value)] != self.type:
+        if (
+            (not self.inferred)
+            and python_to_dust_type_map.get(type(value)) != self.type
+            and self.type in ("int", "float", "bool", "string", "array")
+        ):
             _error(
                 errinfomod,
                 ErrorType.AssignmentTypeMismatch,
@@ -127,6 +128,58 @@ class WrapperFunctionWraps:
     @staticmethod
     def contains(arr, value):
         return value in arr
+
+
+class Struct:
+    def __init__(
+        self,
+        name,
+        fields,
+        node=None,
+        errinfomod=None,
+    ):
+        self.name = name
+        self.fields = fields
+        self.methods = {}
+        self.node = node
+        self.errinfomod = errinfomod
+
+    def __repr__(self):
+        return f"Struct(name={self.name}, fields={self.fields})"
+
+
+class InitializedStruct:
+    def __init__(
+        self,
+        name,
+        fields,
+        node=None,
+        errinfomod=None,
+    ):
+        self.name = name
+        self.fields = fields
+        self.node = node
+        self.errinfomod = errinfomod
+
+    def __repr__(self):
+        fields = ", ".join(
+            f"{field}: {
+                f'"{repr(value)[1:-1]}"' if repr(value).startswith("'") else repr(value)
+            }"
+            for field, value in self.fields.items()
+        )
+        return f"{self.name} {{ {fields} }}"
+
+
+python_to_dust_type_map = {
+    str: "string",
+    int: "int",
+    float: "float",
+    bool: "bool",
+    list: "array",
+    range: "array",
+    InitializedStruct: "struct",
+}
 
 
 class Env:
@@ -367,9 +420,7 @@ class Interpreter:
             "InputStatement": self.handle_input_statement,
             "FunctionCall": self.handle_function_call,
         }
-        self.FUNCTION_HANDLERS = {
-            "pop": self.handle_pop_statement
-        }
+        self.FUNCTION_HANDLERS = {"pop": self.handle_pop_statement}
         self.pos = -1
         self.cn = None
         self.adv()
@@ -421,7 +472,9 @@ class Interpreter:
             )
         return value
 
-    def handle_expression(self, expr: BinOp | UnaryOp | Literal):
+    def handle_expression(
+        self, expr: BinOp | UnaryOp | Literal | StructInit | DotAccess
+    ):
         if expr.node_type() == "Literal":
             return self.resolve_literal(expr)
         elif expr.node_type() == "UnaryOp":
@@ -439,8 +492,31 @@ class Interpreter:
             arr = self.env.lookup(expr.name, auto_resolve=True, node=expr)
             index = self.handle_expression(expr.index)
             if index > len(arr):
-                pass  # TODO: IndexError
+                _error(
+                    self.errinfomod,
+                    ErrorType.IndexErr,
+                    ErrorIDs.IndexErr,
+                    f"{expr.line}-{expr.lineEnd}:{expr.col}-{expr.colEnd}",
+                    index,
+                )
             return arr[index]
+        elif expr.node_type() == "DotAccess":
+            if isinstance(expr.lhs, DotAccess):
+                data = self.handle_expression(expr.lhs)
+            else:
+                data = self.env.lookup(expr.lhs)
+            return data.fields[expr.rhs]
+        elif expr.node_type() == "StructInit":
+            initialized_struct = InitializedStruct(
+                expr.name,
+                {
+                    field: self.handle_expression(value)
+                    for field, value in expr.fields.items()
+                },
+                expr,
+                self.errinfomod,
+            )
+            return initialized_struct
         elif expr.node_type() in self.EXPR_NODE_TYPES:
             return self.EXPR_NODE_TYPES[expr.node_type()](expr)
         lhs = self.handle_expression(expr.lhs)
@@ -519,13 +595,20 @@ class Interpreter:
                 return True
             return lhs or rhs
 
-    def handle_print_statement(self, node):
+    def handle_print_statement(self, node, return_repr=False):
         values = []
         for i in node.values:
             val = self.handle_expression(i)
             if isinstance(val, bool):
                 val = "true" if (val and isinstance(val, bool)) else "false"
+            elif isinstance(val, list):
+                for i, v in enumerate(val):
+                    if repr(v).startswith("'"):
+                        val[i] = f'"{v}"'
+                val = f"[{', '.join(str(v) for v in val)}]"
             values.append(str(val))
+        if return_repr:
+            return " ".join(values)
         print(" ".join(values))
 
     def handle_let_statement(self, node):
@@ -547,12 +630,24 @@ class Interpreter:
             ),
         )
 
+    def get_dotaccess_first(self, node: DotAccess):
+        if not isinstance(node, DotAccess):
+            return node
+        elif not isinstance(node.lhs, DotAccess):
+            return node.lhs
+        return self.get_dotaccess_first(node.lhs)
+
     def handle_reassignment(self, node):
         if isinstance(node.name, GetItem):
             arr = self.env.lookup(node.name.name, node=node)
             index = self.handle_expression(node.name.index)
             arr[index] = self.handle_expression(node.value)
             self.env.define(node.name.name, Variable(arr), redefining=True)
+        elif isinstance(node.name, DotAccess):
+            field = node.name.rhs
+            name = self.get_dotaccess_first(node.name)
+            data = self.env.lookup(name)
+            data.fields[field] = self.handle_expression(node.value)
         else:
             self.env.define(
                 node.name,
@@ -635,16 +730,28 @@ class Interpreter:
         self.inputting = False
         return value
 
-    def handle_function_statement(self, node):
+    def handle_function_statement(self, node, no_define=False):
+        if no_define:
+            return Function(
+                node.params, node.body, node, node.return_type, self.errinfomod
+            )
         self.env.define(
             node.name,
             Function(node.params, node.body, node, node.return_type, self.errinfomod),
         )
 
-    def handle_function_call(self, node):
+    def handle_function_call(self, node: FunctionCall):
         if node.name in self.FUNCTION_HANDLERS:
             return self.FUNCTION_HANDLERS[node.name](node)
-        func = self.env.lookup(node.name, node=node, auto_resolve=False)
+        if isinstance(node.name, DotAccess):
+            struct = self.env.lookup(self.get_dotaccess_first(node.name), node)
+            structdata = self.env.lookup(struct.name)
+            node.args.insert(0, struct)
+            func = self.handle_function_statement(
+                structdata.fields[node.name.rhs][1], no_define=True
+            )
+        else:
+            func = self.env.lookup(node.name, node=node, auto_resolve=False)
         if isinstance(func, WrapperFunction):
             arguments = [self.handle_expression(value) for value in node.args]
             return func.wraps_to(*arguments)
@@ -658,7 +765,10 @@ class Interpreter:
             )
         arguments = {}
         for i, v in enumerate(func.params):
-            resolved = self.handle_expression(node.args[i])
+            if i == 0 and v == "self":
+                resolved = node.args[i]
+            else:
+                resolved = self.handle_expression(node.args[i])
             arguments[v] = resolved
         env = Env(self.errinfomod, self.env)
         for idx, (i, v) in enumerate(arguments.items()):
@@ -745,6 +855,16 @@ class Interpreter:
                 res = self.handle_for_statement(node)
                 if res is not None:
                     return res
+            case "StructStatement":
+                self.env.define(
+                    node.name,
+                    Struct(
+                        node.name,
+                        node.fields,
+                        node,
+                        self.errinfomod,
+                    ),
+                )
 
     def interpret(self):
         if stack_frame >= self.env.lookup("RECURSION_LIMIT"):

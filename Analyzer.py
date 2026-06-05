@@ -5,8 +5,10 @@ import sys
 
 from AST import (
     BinOp,
+    DotAccess,
     GetItem,
     Literal,
+    StructInit,
     UnaryOp,
 )
 from Error import ErrorIDs, ErrorInfo, ErrorType, error, error_exit
@@ -25,13 +27,20 @@ def _exit(error_info, code=1):
     sys.exit(code)
 
 
-def _error(
-    error_info: ErrorInfo, error_type, error_id: ErrorIDs, position_info: str, *args
-):
-    error(error_info, error_type, error_id, position_info, *args)
-
-
 errored = False
+
+
+def _error(
+    error_info: ErrorInfo,
+    error_type,
+    error_id: ErrorIDs,
+    position_info: str,
+    *args,
+    **kwargs,
+):
+    global errored
+    errored = True
+    error(error_info, error_type, error_id, position_info, *args, **kwargs)
 
 
 class Env:
@@ -64,13 +73,9 @@ class Env:
                 "insert": {
                     "type": "function",
                     "const": True,
-                    "params": {"arr": "array", "index": "int", "value": "dynamic"}
+                    "params": {"arr": "array", "index": "int", "value": "dynamic"},
                 },
-                "pop": {
-                    "type": "function",
-                    "const": True,
-                    "params": {"arr": "array"}
-                }
+                "pop": {"type": "function", "const": True, "params": {"arr": "array"}},
             }
         )
         self.errinfomod = errinfomod
@@ -82,11 +87,13 @@ class Env:
             dictionary[k] = v
         self.symbols[name] = dictionary
 
-    def lookup(self, name, node=None):
+    def lookup(self, name, node=None, fail=True):
         global errored
         if name not in self.symbols:
             if self.parent:
-                return self.parent.lookup(name, node)
+                return self.parent.lookup(name, node, fail=fail)
+            if not fail:
+                return
             if node is None:
                 print("An internal error within the Dust interpreter happened.")
                 _exit(self.errinfomod, 1)
@@ -97,7 +104,6 @@ class Env:
                 f"{node.line}-{node.lineEnd}:{node.col}-{node.colEnd}",
                 name,
             )
-            errored = True
             return None
         else:
             return self.symbols[name]
@@ -138,18 +144,76 @@ class Analyzer:
         else:
             return value.value
 
-    def handle_expression(self, expr: BinOp | UnaryOp | Literal):
+    def resolve_nested_dotaccess(self, da: DotAccess, leave_da_last=False):
+        if not isinstance(da, DotAccess):
+            return da
+        elif not isinstance(da.lhs, DotAccess):
+            if leave_da_last:
+                return da
+            return da.lhs
+        return self.resolve_nested_dotaccess(da).lhs
+
+    def resolve_nested_dotaccess_list(self, da: DotAccess):
+        if not isinstance(da, DotAccess):
+            return da
+        elif not isinstance(da.lhs, DotAccess):
+            return [da.lhs]
+        return [self.resolve_nested_dotaccess_list(da).lhs]
+
+    def handle_expression(
+        self, expr: BinOp | UnaryOp | Literal | StructInit | DotAccess
+    ):
         global errored
         if isinstance(expr, Literal):
             return self.resolve_literal(expr)
         elif isinstance(expr, UnaryOp):
             return self.handle_expression(expr.rhs)
+        elif isinstance(expr, StructInit):
+            data = self.env.lookup(expr.name)
+            for field, value in expr.fields.items():
+                if field not in data["fields"]:
+                    _error(
+                        self.errinfomod,
+                        ErrorType.NotAStructField,
+                        ErrorIDs.NotAStructField,
+                        f"{expr.line}-{expr.lineEnd}:{expr.col}-{expr.colEnd}",
+                        expr.name,
+                        field,
+                    )
+                self.handle_expression(value)
+            return data
+        elif expr.node_type() == "DotAccess":
+            lhs = expr.lhs
+            if isinstance(expr.lhs, DotAccess):
+                lhs = self.handle_expression(expr.lhs)
+                data = lhs
+                structdata = self.env.lookup(data.get("data_type"), expr)
+            else:
+                data = self.env.lookup(lhs, expr)
+                structdata = self.env.lookup(data.get("data_type"), expr)
+            rezzed = self.resolve_nested_dotaccess(expr.lhs, True)
+            if (
+                isinstance(rezzed, DotAccess)
+                and rezzed.rhs not in data["fields"]
+                and rezzed.rhs not in structdata["fields"]
+            ):
+                _error(
+                    self.errinfomod,
+                    ErrorType.NotAStructField,
+                    ErrorIDs.NotAStructField,
+                    f"{expr.line}-{expr.lineEnd}:{expr.col}-{expr.colEnd}",
+                    self.resolve_nested_dotaccess(expr.lhs),
+                    expr.rhs,
+                )
+            return data
         elif expr.node_type() in [
             "InputStatement",
-            "FunctionCall",
         ]:
             return "ok"
-        if not isinstance(expr, (BinOp, UnaryOp, Literal)):
+        elif expr.node_type() == "FunctionCall":
+            self.analyze_function_call(expr)
+            return "ok"
+        if not isinstance(expr, (BinOp, UnaryOp, Literal, StructInit)):
             return
         erroredrn = False
         if isinstance(self.handle_expression(expr.lhs), list):
@@ -163,7 +227,6 @@ class Analyzer:
                     python_to_dust_type_map[type(self.handle_expression(expr.lhs))],
                     python_to_dust_type_map[type(self.handle_expression(expr.rhs))],
                 )
-                errored = True
                 erroredrn = True
         if expr.op in "\\/%":
             if isinstance(expr.rhs, Literal) and expr.rhs.value == 0:
@@ -174,7 +237,6 @@ class Analyzer:
                     f"{expr.line}-{expr.lineEnd}:{expr.col}-{expr.colEnd}",
                     True,
                 )
-                errored = True
                 erroredrn = True
         return not erroredrn
 
@@ -192,8 +254,100 @@ class Analyzer:
                 f"{node.condition.line}-{node.condition.lineEnd}:{node.condition.col}-{node.condition.colEnd}",
                 python_to_dust_type_map[type(node.condition.value)],
             )
-            errored = True
         return False
+
+    def check_type_exists(self, typ, node):
+        global errored
+        if typ in ("dynamic", "int", "float", "bool", "string", "array"):
+            return "exists"
+        type_exists = self.env.lookup(typ, node, fail=False)
+        type_is_struct = type_exists["type"] == "struct"
+        if (
+            typ not in ("int", "string", "float", "bool", "array")
+            and not type_is_struct
+        ):
+            _error(
+                self.errinfomod,
+                ErrorType.UndefinedSymbol,
+                ErrorIDs.UndefinedSymbol,
+                f"{node.line}-{node.lineEnd}:{node.col}-{node.colEnd}",
+                typ,
+            )
+
+    def analyze_function_statement(self, node):
+        self.env.define(
+            node.name,
+            "function",
+            params=node.params,
+        )
+        env = Env(self.errinfomod, parent=self.env)
+        for i, v in node.params.items():
+            self.check_type_exists(v, node)
+            env.define(i, "var", const=True, data_type=v, inferred=v == "dynamic")
+            Analyzer(
+                node.body,
+                self.filename,
+                self.errinfomod,
+                function=True,
+                env=env,
+            ).analyze()
+        return self.env.lookup(node.name, node)
+
+    def analyze_function_call(self, node):
+        temp = node.name
+        structing = False
+        if isinstance(node.name, DotAccess):
+            struct = self.handle_expression(node.name)
+            structdata = self.env.lookup(struct.get("data_type"), node.name)
+            if node.name.rhs not in structdata["fields"]:
+                _error(
+                    self.errinfomod,
+                    ErrorType.NotAStructField,
+                    ErrorIDs.NotAStructField,
+                    f"{node.line}-{node.lineEnd}:{node.col}-{node.colEnd}",
+                    self.resolve_nested_dotaccess(node.name),
+                    node.name.rhs,
+                )
+                return
+            func = structdata["fields"][node.name.rhs][2]
+            temp = node.name
+            node.name = ".".join(
+                [*self.resolve_nested_dotaccess_list(node.name), node.name.rhs]
+            )
+            structing = True
+        else:
+            func = self.env.lookup(node.name, node)
+        if not func:
+            self.adv()
+            return
+        erroredrn = False
+        if func["type"] != "function" and not self.function:
+            _error(
+                self.errinfomod,
+                ErrorType.NotAFunction,
+                ErrorIDs.NotAFunction,
+                f"{node.line}-{node.lineEnd}:{node.col}-{node.colEnd}",
+                node.name,
+            )
+            erroredrn = True
+        if not erroredrn:
+            if not self.function and (
+                len(node.args) != (len(func["params"])
+                if not structing
+                else len(func["params"]) - 1)
+            ):
+                _error(
+                    self.errinfomod,
+                    ErrorType.ArgumentCountMismatch,
+                    ErrorIDs.ArgumentCountMismatch,
+                    f"{node.line}-{node.lineEnd}:{node.col}-{node.colEnd}",
+                    node.name,
+                    len(func["params"]),
+                    len(node.args),
+                )
+        for arg in node.args:
+            arg = self.handle_expression(arg)
+        node.name = temp
 
     def analyze(self):
         global errored
@@ -204,10 +358,25 @@ class Analyzer:
                         self.handle_expression(i)
                 case "LetStatement":
                     value = self.handle_expression(self.cn.value)
-                    if isinstance(value, dict) and value.get("data_type") is not None:
-                        typ = value.get("data_type")
-                    elif not isinstance(value, dict):
-                        typ = python_to_dust_type_map[type(value)]
+                    typ = self.cn.type
+                    exists = self.check_type_exists(typ, self.cn)
+                    if exists == "exists":
+                        if isinstance(value, dict) and value["type"] in (
+                            "struct",
+                            "initstruct",
+                        ):
+                            if isinstance(self.cn.value, StructInit):
+                                typ = self.cn.value.name
+                            self.env.define(
+                                self.cn.name,
+                                "initstruct",
+                                const=self.cn.const,
+                                data_type=typ,
+                                inferred=self.cn.type == "dynamic",
+                                fields=self.cn.value.fields,
+                            )
+                            self.adv()
+                            continue
                     self.env.define(
                         self.cn.name,
                         "var",
@@ -216,8 +385,7 @@ class Analyzer:
                         inferred=self.cn.type == "dynamic",
                     )
                 case "VariableReassignment":
-                    if isinstance(self.cn.name, GetItem):
-                        self.env.lookup(self.cn.name.name, self.cn.name)
+                    if isinstance(self.cn.name, (GetItem, DotAccess)):
                         self.adv()
                         continue
                     value = self.env.lookup(self.cn.name, self.cn)
@@ -233,8 +401,6 @@ class Analyzer:
                             f"{self.cn.line}-{self.cn.lineEnd}:{self.cn.col}-{self.cn.colEnd}",
                             self.cn.name,
                         )
-                        errored = True
-                    typ = value.get("type")
                     self.env.define(self.cn.name, "var")
                 case "IfStatement":
                     self.resolve_truthiness(self.cn)
@@ -274,7 +440,6 @@ class Analyzer:
                             "break",
                             "loop",
                         )
-                        errored = True
                 case "ContinueStatement":
                     if not self.loop:
                         _error(
@@ -285,57 +450,10 @@ class Analyzer:
                             "continue",
                             "loop",
                         )
-                        errored = True
                 case "FunctionStatement":
-                    self.env.define(
-                        self.cn.name,
-                        "function",
-                        params=self.cn.params,
-                    )
-                    env = Env(self.errinfomod, parent=self.env)
-                    for i, v in self.cn.params.items():
-                        env.define(
-                            i, "var", const=True, data_type=v, inferred=v == "dynamic"
-                        )
-                    Analyzer(
-                        self.cn.body,
-                        self.filename,
-                        self.errinfomod,
-                        function=True,
-                        env=env,
-                    ).analyze()
+                    self.analyze_function_statement(self.cn)
                 case "FunctionCall":
-                    func = self.env.lookup(self.cn.name, self.cn)
-                    if not func:
-                        self.adv()
-                        continue
-                    erroredrn = False
-                    if func["type"] != "function" and not self.function:
-                        _error(
-                            self.errinfomod,
-                            ErrorType.NotAFunction,
-                            ErrorIDs.NotAFunction,
-                            f"{self.cn.line}-{self.cn.lineEnd}:{self.cn.col}-{self.cn.colEnd}",
-                            self.cn.name,
-                        )
-                        errored = True
-                        erroredrn = True
-                    if not erroredrn:
-                        if not self.function and len(self.cn.args) != len(
-                            func["params"]
-                        ):
-                            _error(
-                                self.errinfomod,
-                                ErrorType.ArgumentCountMismatch,
-                                ErrorIDs.ArgumentCountMismatch,
-                                f"{self.cn.line}-{self.cn.lineEnd}:{self.cn.col}-{self.cn.colEnd}",
-                                self.cn.name,
-                                len(func["params"]),
-                                len(self.cn.args),
-                            )
-                            errored = True
-                    for arg in self.cn.args:
-                        arg = self.handle_expression(arg)
+                    self.analyze_function_call(self.cn)
                 case "ReturnStatement":
                     if not self.function:
                         _error(
@@ -346,7 +464,6 @@ class Analyzer:
                             "return",
                             "function",
                         )
-                        errored = True
                 case "ForStatement":
                     self.handle_expression(self.cn.range)
                     env = Env(self.errinfomod, self.env)
@@ -365,6 +482,57 @@ class Analyzer:
                         loop=True,
                         function=self.function,
                     ).analyze()
+                case "StructStatement":
+                    self.env.define(
+                        self.cn.name,
+                        "struct",
+                        True,
+                        fields=self.cn.fields,
+                    )
+                case "StructInit":
+                    self.env.define(
+                        self.cn.name,
+                        "initstruct",
+                        True,
+                        fields=self.cn.fields,
+                    )
+                case "Implementation":
+                    data = self.env.lookup(self.cn.struct, self.cn, fail=False)
+                    if not data:
+                        self.env.lookup(self.cn.struct, self.cn)
+                    if not isinstance(data, dict):
+                        exit(1)
+                    if data.get("type") != "struct":
+                        hlp = None
+                        if data.get("type") == "initstruct":
+                            hlp = f"""`{self.cn.struct}`'s parent struct is `{
+                                data.get("data_type")
+                            }`. Maybe you meant to write an implementation for the
+Person struct?"""
+                        _error(
+                            self.errinfomod,
+                            ErrorType.NotAStruct,
+                            ErrorIDs.NotAStruct,
+                            f"{self.cn.line}-{self.cn.lineEnd}:{self.cn.col}-{self.cn.colEnd}",
+                            self.cn.struct,
+                            hlp=hlp,
+                        )
+                        self.adv()
+                        continue
+                    for method in self.cn.methods:
+                        self.analyze_function_statement(method)
+                    data["fields"] |= {
+                        method.name: [
+                            "method",
+                            method,
+                            self.analyze_function_statement(method),
+                        ]
+                        for method in self.cn.methods
+                    }
+                    self.env.define(
+                        self.cn.struct,
+                        **data,
+                    )
             self.adv()
         if errored:
             _exit(self.errinfomod, 1)

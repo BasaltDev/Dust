@@ -1,6 +1,7 @@
 # Copyright (C) 2026 BasaltDev
 # SPDX-License-Identifier: GPL-3.0-only
 
+import sys
 import unicodedata
 
 from coloring import Fore, Style
@@ -56,6 +57,8 @@ dots. Try turning it into:\n    `{Fore.RED}{malformed}{Fore.RESET}` -----> `\
         token_repr = ""
         if isinstance(token, TokenType):
             token_value = None
+        else:
+            token_value = "temp"
         if token_value is None:
             token_repr = f"token of type `{token.name}`"
         else:
@@ -192,6 +195,22 @@ the function definition to expect a different number of arguments.",
     def RecursionDepthError(recursion_depth):
         return f"Maximum recursion depth ({recursion_depth}) reached and exceeded"
 
+    @staticmethod
+    def IndexErr(index):
+        return f"Index {index} out of bounds"
+
+    @staticmethod
+    def NotAStructField(struct, field):
+        return f"`{field}` is not a field of the `{struct}` struct"
+
+    @staticmethod
+    def NotAStruct(struct, hlp=None):
+        return (
+            f"`{struct}` is not a struct"
+            if hlp is None
+            else (f"`{struct}` is not a struct", hlp)
+        )
+
 
 class ErrorIDs:
     MalformedString = "E0001"
@@ -213,6 +232,9 @@ class ErrorIDs:
     AlreadyDefinedSymbol = "E0015"
     NotAType = "E0016"
     RecursionDepthError = "E0017"
+    IndexErr = "E0018"
+    NotAStructField = "E0019"
+    NotAStruct = "E0020"
 
 
 class ErrorIDNames:
@@ -235,6 +257,9 @@ class ErrorIDNames:
     E0015 = "AlreadyDefinedSymbol"
     E0016 = "NotAType"
     E0017 = "RecursionDepthError"
+    E0018 = "IndexErr"
+    E0019 = "NotAStructField"
+    E0020 = "NotAStruct"
 
 
 def error(
@@ -244,8 +269,9 @@ def error(
     position_info: str,
     *args,
     show_code=True,
+    **kwargs,
 ):
-    errmsg = error_type(*args)
+    errmsg = error_type(*args, **kwargs)
     help_msg = None if len(errmsg) < 2 else errmsg[1]
     plines = position_info.split(":")[0]
     if len(plines.split("-")) > 1 and int(plines.split("-")[0]) == int(
@@ -254,7 +280,9 @@ def error(
         plines = plines.split("-")[0]
     cols = position_info.split(":")[1]
     displaycols = cols
-    if int(cols.split("-")[1]) - 1 == int(cols.split("-")[0]):
+    if int(cols.split("-")[1]) - 1 == int(cols.split("-")[0]) and int(plines[0]) == int(
+        plines[1]
+    ):
         displaycols = cols.split("-")[0]
     if not show_code:
         error_info.error_table.append({"id": error_id})
@@ -289,7 +317,7 @@ def error(
         return
     print(
         f"{Fore.GREEN}{error_info.filename}{Fore.RESET}:{Fore.YELLOW}{plines}\
-{Fore.RESET}:{Fore.RED}{displaycols} {Fore.LIGHTRED_EX} Error[{error_id}]: {Fore.RESET}\
+{Fore.RESET}:{Fore.RED}{displaycols}{Fore.LIGHTRED_EX} Error[{error_id}]: {Fore.RESET}\
 {errmsg[0] if isinstance(errmsg, tuple) else errmsg}"
     )
     ln = error_info.source_lines[line - 1]
@@ -349,7 +377,7 @@ def error(
 def error_exit(errinfomod: ErrorInfo):
     if errinfomod.json:
         print(errinfomod.error_table)
-        exit(1)
+        sys.exit(1)
     if errinfomod.error_table:
         print(
             "If you need additional help to debug your program, you can use the "
@@ -359,11 +387,11 @@ def error_exit(errinfomod: ErrorInfo):
             "To explain all the errors you've encountered, you might run a command like"
             " this:"
         )
-        sorted_errors = errinfomod.error_table.copy()
-        sorted_errors.sort(key=lambda x: x["id"])
+        sorted_errors = list(set([x["id"] for x in errinfomod.error_table]))
+        sorted_errors.sort()
         print(
             f"{Fore.LIGHTYELLOW_EX}    dust{Fore.RESET} --explain {
-                ','.join(err['id'] for err in sorted_errors)
+                ','.join(sorted_errors)
             }"
         )
     print(f"{Fore.RED}Exiting due to failure...{Fore.RESET}")

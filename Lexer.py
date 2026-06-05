@@ -30,6 +30,8 @@ class Lexer:
         "return": TokenType.KEYWORD,
         "for": TokenType.KEYWORD,
         "in": TokenType.KEYWORD,
+        "struct": TokenType.KEYWORD,
+        "implement": TokenType.KEYWORD,
         "int": TokenType.DATA_TYPE,
         "float": TokenType.DATA_TYPE,
         "string": TokenType.DATA_TYPE,

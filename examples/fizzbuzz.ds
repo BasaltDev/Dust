@@ -5,7 +5,7 @@ while idx <= 100 {
         fizzbuzz = "Fizz";
     }
     if idx % 5 == 0 {
-        if fizzbuzz == "fizz" {
+        if fizzbuzz == "Fizz" {
             fizzbuzz = "FizzBuzz";
         } else {
             fizzbuzz = "Buzz";

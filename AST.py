@@ -236,7 +236,7 @@ body={self.body}, return_type={self.return_type})"
 class FunctionCall:
     def __init__(self, name, args, line=None, lineEnd=None, col=None, colEnd=None):
         self.name = name
-        self.args = args
+        self.args: list = args
         self.line = line
         self.lineEnd = lineEnd
         self.col = col
@@ -299,3 +299,67 @@ class GetItem:
 
     def __repr__(self):
         return f"GetItem(name={self.name}, index={self.index})"
+
+
+class StructInit:
+    def __init__(self, name, fields, line=None, lineEnd=None, col=None, colEnd=None):
+        self.name = name
+        self.fields = fields
+        self.line = line
+        self.lineEnd = lineEnd
+        self.col = col
+        self.colEnd = colEnd
+
+    def node_type(self):
+        return "StructInit"
+
+    def __repr__(self):
+        return f"StructInit(name={self.name}, fields={self.fields})"
+
+
+class StructStatement:
+    def __init__(self, name, fields, line=None, lineEnd=None, col=None, colEnd=None):
+        self.name = name
+        self.fields = fields
+        self.line = line
+        self.lineEnd = lineEnd
+        self.col = col
+        self.colEnd = colEnd
+
+    def node_type(self):
+        return "StructStatement"
+
+    def __repr__(self):
+        return f"StructStatement(name={self.name}, fields={self.fields})"
+
+
+class DotAccess:
+    def __init__(self, lvalue, rvalue, line=None, lineEnd=None, col=None, colEnd=None):
+        self.lhs = lvalue
+        self.rhs = rvalue
+        self.line = line
+        self.lineEnd = lineEnd
+        self.col = col
+        self.colEnd = colEnd
+
+    def node_type(self):
+        return "DotAccess"
+
+    def __repr__(self):
+        return f"DotAccess(lhs={self.lhs}, rhs={self.rhs})"
+
+
+class Implementation:
+    def __init__(self, struct, methods, line=None, lineEnd=None, col=None, colEnd=None):
+        self.struct = struct
+        self.methods = methods
+        self.line = line
+        self.lineEnd = lineEnd
+        self.col = col
+        self.colEnd = colEnd
+
+    def node_type(self):
+        return "Implementation"
+
+    def __repr__(self):
+        return f"Implementation(struct={self.struct}, methods={self.methods})"
