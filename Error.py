@@ -170,11 +170,11 @@ removing the statement altogether.",
         )
 
     @staticmethod
-    def ArgumentCountMismatch(name, expected, got):
+    def ArgumentCountMismatch(name, expected, got, typ="function"):
         return (
             f"Expected {expected} arguments for `{name}`, got {got}",
-            "Try changing the number of arguments passed to the function or changing \
-the function definition to expect a different number of arguments.",
+            f"Try changing the number of arguments passed to the {typ} or changing \
+the {typ} definition to expect a different number of arguments.",
         )
 
     @staticmethod

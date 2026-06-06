@@ -8,3 +8,4 @@ tests/other/
 node_modules/
 *.json
 old/
+dust.ds

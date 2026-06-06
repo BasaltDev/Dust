@@ -145,7 +145,7 @@ class Struct:
         self.errinfomod = errinfomod
 
     def __repr__(self):
-        return f"Struct(name={self.name}, fields={self.fields})"
+        return f"Struct(name={self.name}, fields={self.fields}, methods={self.methods})"
 
 
 class InitializedStruct:
@@ -747,9 +747,7 @@ class Interpreter:
             struct = self.env.lookup(self.get_dotaccess_first(node.name), node)
             structdata = self.env.lookup(struct.name)
             node.args.insert(0, struct)
-            func = self.handle_function_statement(
-                structdata.fields[node.name.rhs][1], no_define=True
-            )
+            func = structdata.methods[node.name.rhs]
         else:
             func = self.env.lookup(node.name, node=node, auto_resolve=False)
         if isinstance(func, WrapperFunction):
@@ -865,6 +863,11 @@ class Interpreter:
                         self.errinfomod,
                     ),
                 )
+            case "Implementation":
+                struct: Struct = self.env.lookup(node.struct)
+                for method in self.cn.methods:
+                    func = self.handle_function_statement(method, no_define=True)
+                    struct.methods[method.name] = func
 
     def interpret(self):
         if stack_frame >= self.env.lookup("RECURSION_LIMIT"):

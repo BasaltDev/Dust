@@ -81,10 +81,12 @@ class Env:
         self.errinfomod = errinfomod
         self.parent = parent
 
-    def define(self, name, typ="var", const=False, **kwargs):
+    def define(self, name, typ="var", const=False, ret_result=False, **kwargs):
         dictionary = {"type": typ, "const": const}
         for k, v in kwargs.items():
             dictionary[k] = v
+        if ret_result:
+            return dictionary
         self.symbols[name] = dictionary
 
     def lookup(self, name, node=None, fail=True):
@@ -170,6 +172,21 @@ class Analyzer:
             return self.handle_expression(expr.rhs)
         elif isinstance(expr, StructInit):
             data = self.env.lookup(expr.name)
+            methodless = data["fields"]
+            for i, v in methodless.copy().items():
+                if isinstance(v, list) and v[0] == "method":
+                    del methodless[i]
+            if len(methodless) != len(expr.fields):
+                _error(
+                    self.errinfomod,
+                    ErrorType.ArgumentCountMismatch,
+                    ErrorIDs.ArgumentCountMismatch,
+                    f"{expr.line}-{expr.lineEnd}:{expr.col}-{expr.colEnd}",
+                    expr.name,
+                    len(methodless),
+                    len(expr.fields),
+                    typ="struct",
+                )
             for field, value in expr.fields.items():
                 if field not in data["fields"]:
                     _error(
@@ -274,32 +291,34 @@ class Analyzer:
                 typ,
             )
 
-    def analyze_function_statement(self, node):
-        self.env.define(
-            node.name,
-            "function",
-            params=node.params,
+    def analyze_function_statement(self, node, define=True):
+        result = self.env.define(
+            node.name, "function", params=node.params, ret_result=not define
         )
         env = Env(self.errinfomod, parent=self.env)
         for i, v in node.params.items():
             self.check_type_exists(v, node)
             env.define(i, "var", const=True, data_type=v, inferred=v == "dynamic")
-            Analyzer(
-                node.body,
-                self.filename,
-                self.errinfomod,
-                function=True,
-                env=env,
-            ).analyze()
-        return self.env.lookup(node.name, node)
+        Analyzer(
+            node.body,
+            self.filename,
+            self.errinfomod,
+            function=True,
+            env=env,
+        ).analyze()
+        if define:
+            return self.env.lookup(node.name, node)
+        else:
+            return result
 
     def analyze_function_call(self, node):
         temp = node.name
         structing = False
         if isinstance(node.name, DotAccess):
-            struct = self.handle_expression(node.name)
-            structdata = self.env.lookup(struct.get("data_type"), node.name)
-            if node.name.rhs not in structdata["fields"]:
+            struct = self.env.lookup(self.resolve_nested_dotaccess(node.name))
+            name_to_lookup = struct.get("data_type")
+            structdata = self.env.lookup(name_to_lookup, node.name)
+            if node.name.rhs not in structdata["methods"]:
                 _error(
                     self.errinfomod,
                     ErrorType.NotAStructField,
@@ -309,7 +328,7 @@ class Analyzer:
                     node.name.rhs,
                 )
                 return
-            func = structdata["fields"][node.name.rhs][2]
+            func = structdata["methods"][node.name.rhs][2]
             temp = node.name
             node.name = ".".join(
                 [*self.resolve_nested_dotaccess_list(node.name), node.name.rhs]
@@ -332,9 +351,8 @@ class Analyzer:
             erroredrn = True
         if not erroredrn:
             if not self.function and (
-                len(node.args) != (len(func["params"])
-                if not structing
-                else len(func["params"]) - 1)
+                len(node.args)
+                != (len(func["params"]) if not structing else len(func["params"]) - 1)
             ):
                 _error(
                     self.errinfomod,
@@ -488,13 +506,7 @@ class Analyzer:
                         "struct",
                         True,
                         fields=self.cn.fields,
-                    )
-                case "StructInit":
-                    self.env.define(
-                        self.cn.name,
-                        "initstruct",
-                        True,
-                        fields=self.cn.fields,
+                        methods={}
                     )
                 case "Implementation":
                     data = self.env.lookup(self.cn.struct, self.cn, fail=False)
@@ -508,7 +520,7 @@ class Analyzer:
                             hlp = f"""`{self.cn.struct}`'s parent struct is `{
                                 data.get("data_type")
                             }`. Maybe you meant to write an implementation for the
-Person struct?"""
+{data.get("data_type")} struct?"""
                         _error(
                             self.errinfomod,
                             ErrorType.NotAStruct,
@@ -520,19 +532,17 @@ Person struct?"""
                         self.adv()
                         continue
                     for method in self.cn.methods:
-                        self.analyze_function_statement(method)
-                    data["fields"] |= {
-                        method.name: [
-                            "method",
-                            method,
-                            self.analyze_function_statement(method),
-                        ]
-                        for method in self.cn.methods
-                    }
-                    self.env.define(
-                        self.cn.struct,
-                        **data,
-                    )
+                        method_dict = self.analyze_function_statement(
+                            method, define=False
+                        )
+                        method_dict = {
+                            method.name: [
+                                "method",
+                                method,
+                                method_dict,
+                            ]
+                        }
+                        data["methods"] |= method_dict
             self.adv()
         if errored:
             _exit(self.errinfomod, 1)
